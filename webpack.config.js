@@ -39,16 +39,15 @@ const canisterEnvVariables = initCanisterEnv();
 const isDevelopment = process.env.NODE_ENV !== "production";
 
 const frontendDirectory = "dapp_frontend";
-
-const frontend_entry = path.join("src", frontendDirectory, "src", "index.html");
+const frontend_entry = path.join("src", frontendDirectory, "public", "index.html");
+const app_entry = path.join("src", frontendDirectory, "src", "index.tsx")
+console.log("app_entry", app_entry)
 
 module.exports = {
   target: "web",
   mode: isDevelopment ? "development" : "production",
   entry: {
-    // The frontend.entrypoint points to the HTML file for this build, so we need
-    // to replace the extension to `.js`.
-    index: path.join(__dirname, frontend_entry).replace(/\.html$/, ".js"),
+    index: path.resolve(__dirname, app_entry),
   },
   devtool: isDevelopment ? "source-map" : false,
   optimization: {
@@ -70,17 +69,60 @@ module.exports = {
     path: path.join(__dirname, "dist", frontendDirectory),
   },
 
-  // Depending in the language or framework you are using for
-  // front-end development, add module loaders to the default
-  // webpack configuration. For example, if you are using React
-  // modules and CSS as described in the "Adding a stylesheet"
-  // tutorial, uncomment the following lines:
-  // module: {
-  //  rules: [
-  //    { test: /\.(ts|tsx|jsx)$/, loader: "ts-loader" },
-  //    { test: /\.css$/, use: ['style-loader','css-loader'] }
-  //  ]
-  // },
+  module: {
+    rules: [
+      {
+        test: /\.(css|scss)$/,
+        include: [
+          path.resolve(__dirname, "node_modules"),
+          path.resolve(__dirname, "src", frontendDirectory, "src", "assets")
+        ],
+        use: [
+          'style-loader',
+          'css-loader',
+          'sass-loader'
+        ]
+      },
+      {
+        test: /\.(png|svg|jpg|webm)$/,
+        use: [
+          'file-loader',
+        ],
+      },
+      {
+        test: /\.(ts|tsx)/,
+        include: path.resolve(__dirname, "src", frontendDirectory, "src"),
+        exclude: [
+          path.resolve(__dirname, "node_modules"),
+          path.resolve(__dirname, "src", frontendDirectory, "src", "assets"),
+        ],
+        use: [
+          {
+            loader: 'babel-loader',
+            options: {
+              babelrc: true,
+              cacheDirectory: true,
+              "presets": [
+                "@babel/preset-react",
+                "@babel/preset-typescript",
+                [
+                  "@babel/preset-env",
+                  {
+                    "useBuiltIns": "usage",
+                    "corejs": "3.26"
+                  }
+                ]
+              ]
+            },
+          },
+          {
+            loader: 'ts-loader'
+          }
+        ]
+      }
+    ]
+  },
+
   plugins: [
     new HtmlWebpackPlugin({
       template: path.join(__dirname, frontend_entry),
@@ -116,9 +158,9 @@ module.exports = {
         },
       },
     },
-    static: path.resolve(__dirname, "src", frontendDirectory, "assets"),
+    static: path.resolve(__dirname, "src", frontendDirectory, "src", "assets"),
     hot: true,
-    watchFiles: [path.resolve(__dirname, "src", frontendDirectory)],
+    watchFiles: [path.resolve(__dirname, "src", frontendDirectory, "src")],
     liveReload: true,
   },
 };

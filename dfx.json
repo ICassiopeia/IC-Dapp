@@ -12,7 +12,7 @@
         "entrypoint": "src/dapp_frontend/src/index.html"
       },
       "source": [
-        "src/dapp_frontend/assets",
+        "src/dapp_frontend/src/assets",
         "dist/dapp_frontend/"
       ],
       "type": "assets"

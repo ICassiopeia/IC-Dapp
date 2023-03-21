@@ -1,0 +1,3 @@
+[submodule "src/dapp_frontend"]
+	path = src/dapp_frontend
+	url = git@github.com:ICassiopeia/frontend.git
