@@ -35,13 +35,13 @@ function initCanisterEnv() {
   }, {});
 }
 const canisterEnvVariables = initCanisterEnv();
+console.log("canisterEnvVariables", canisterEnvVariables)
 
 const isDevelopment = process.env.NODE_ENV !== "production";
 
 const frontendDirectory = "dapp_frontend";
 const frontend_entry = path.join("src", frontendDirectory, "public", "index.html");
 const app_entry = path.join("src", frontendDirectory, "src", "index.tsx")
-console.log("app_entry", app_entry)
 
 module.exports = {
   target: "web",

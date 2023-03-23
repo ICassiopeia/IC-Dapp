@@ -1,0 +1,14 @@
+{
+  "F-NFT": {
+    "ic": "2ajsp-eyaaa-aaaao-ahzja-cai"
+  },
+  "dapp_backend": {
+    "ic": "2hiu3-jaaaa-aaaao-ahzjq-cai"
+  },
+  "fractional_NFT": {
+    "ic": "6d235-miaaa-aaaao-ahzsa-cai"
+  },
+  "sales_contract": {
+    "ic": "2spfw-iiaaa-aaaao-ahzka-cai"
+  }
+}

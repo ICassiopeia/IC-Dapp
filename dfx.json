@@ -1,28 +1,35 @@
 {
   "canisters": {
-    "dapp_backend": {
-      "main": "src/dapp_backend/main.mo",
+    "fractional_NFT": {
+      "main": "src/fractional_NFT/F-NFT.mo",
       "type": "motoko"
     },
-    "dapp_frontend": {
+    "sales_contract": {
       "dependencies": [
-        "dapp_backend"
+        "fractional_NFT"
       ],
-      "frontend": {
-        "entrypoint": "src/dapp_frontend/src/index.html"
-      },
-      "source": [
-        "src/dapp_frontend/src/assets",
-        "dist/dapp_frontend/"
+      "main": "src/sales_contract/sales_contract.mo",
+      "type": "motoko"
+    },
+    "dapp_backend": {
+      "dependencies": [
+        "fractional_NFT",
+        "sales_contract"
       ],
-      "type": "assets"
+      "main": "src/dapp_backend/assets.mo",
+      "type": "motoko"
     }
   },
   "defaults": {
     "build": {
-      "args": "",
+      "output": "src/dapp_frontend/src/types/dfinity/",
       "packtool": ""
     }
   },
-  "version": 1
+  "dfx": "0.12.1+rev20.333de5d6",
+  "version": 1,
+  "declarations": {
+    "output": "src/dapp_frontend/src/types/dfinity/",
+    "node_compatibility": true
+  }
 }
