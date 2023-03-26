@@ -11,7 +11,7 @@ module {
 
   public type DatasetCreateRequest = {
     metadataNFT: Blob;
-    initialSupply: Nat;
+    category: [Text];
     datasetConfig: DatasetConfigurationInput;
   };
 
@@ -25,6 +25,8 @@ module {
     name : Text;
     assetId : Text;
     dimensions: [DatasetDimension];
+    isActive: Bool;
+    category: [Text];
     createdAt: Int;
     updatedAt: Int;
   };
@@ -117,7 +119,5 @@ module {
     #Add;
     #Remove;
   };
-
-
 
 }

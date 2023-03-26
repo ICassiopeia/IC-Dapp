@@ -50,7 +50,7 @@ actor DatasetNFT {
     _datasetProducersState := [];
   };
 
-  // CREATE
+  // CREATE Dataset
   public shared({caller}) func createDataSet(request: T.DatasetCreateRequest) : async Nat32 {
 		_nextDatasetId := _nextDatasetId + 1;
     assert(L._exists<Nat32, T.DatasetConfiguration>(_datasets, _nextDatasetId) == false);
@@ -59,23 +59,39 @@ actor DatasetNFT {
       name=request.datasetConfig.name;
       assetId=request.datasetConfig.assetId;
       dimensions=request.datasetConfig.dimensions;
+      isActive=true;
+      category=request.category;
       createdAt=Time.now();
       updatedAt=Time.now();
     };
 		_datasets.put(_nextDatasetId, _datasetConfig);
+    switch(_datasetOwners.get(caller)) {
+      case (?_list) {_datasetOwners.put(caller, Array.append(_list, [_nextDatasetId]))};
+      case (_) {_datasetOwners.put(caller, [_nextDatasetId])};
+    };
     // Configure init producer
 		_datasetProducers.put(_nextDatasetId, [caller]);
     // Mint NFT
-    let nftRequest: ExtNonFungible.MintRequest = {to= #principal(caller); metadata=?request.metadataNFT};
-    let _ = await FNFT.mintNFT(
-      _nextDatasetId,
-      nftRequest,
-      "DATATOKEN" #  Nat32.toText(_nextDatasetId),
-      "DTOK" # Nat32.toText(_nextDatasetId),
-      request.initialSupply
-      );
+    // let nftRequest: ExtNonFungible.MintRequest = {to= #principal(caller); metadata=?request.metadataNFT};
+    // let _ = await FNFT.mintNFT(
+    //   _nextDatasetId,
+    //   nftRequest,
+    //   "DATATOKEN" #  Nat32.toText(_nextDatasetId),
+    //   "DTOK" # Nat32.toText(_nextDatasetId),
+    //   request.initialSupply
+    //   );
     _nextDatasetId
 	};
+
+  // DELETE Dataset
+  public shared({caller}) func deleteDataSet(datasetId: Nat32) : async () {
+    // assert(await FNFT.isOwner(caller, datasetId)); // Ownership
+    assert(L._exists<Nat32, T.DatasetConfiguration>(_datasets, _nextDatasetId) == false);
+		_datasets.delete(datasetId);
+		_datasetProducers.delete(datasetId);
+    // TODO: clean related NFTs (disable and keep records)
+    // let _ = await FNFT.mintNFT(datasetId);
+  };
 
   // Producer auth
   public shared({caller}) func getProducers(datasetId : Nat32) : async (?[Principal]) {
@@ -90,7 +106,7 @@ actor DatasetNFT {
 	};
 
   public shared({caller}) func updateProducerList(datasetId : Nat32, user: Principal, mode: T.UpdateMode) : async () {
-    assert(await FNFT.isOwner(caller, datasetId));
+    // assert(await FNFT.isOwner(caller, datasetId));
     switch(_datasetProducers.get(datasetId)) {
       case (?_entryList) {
         let filteredArray = Array.filter<Principal>(_entryList, func(t) { return (Principal.equal(t, user) == false) } );
@@ -108,16 +124,9 @@ actor DatasetNFT {
     };
 	};
 
-  // Read Dataset
-  public query({caller}) func getUserDatasets(userId : Principal) : async ([Nat32]) {
-    switch(_datasetOwners.get(userId)) {
-      case (?_datasets) {
-        _datasets;
-      };
-      case (_) {
-        []
-      };
-    };
+  // READ Dataset
+  public query func getDatasetByDatasetId(datasetId : Nat32) : async (?T.DatasetConfiguration) {
+    _datasets.get(datasetId);
 	};
 
   public query({caller}) func getManyDatasets(ids : [Nat32]) : async ([(Nat32, T.DatasetConfiguration)]) {
@@ -131,7 +140,23 @@ actor DatasetNFT {
     res.toArray()
 	};
 
+  public query({caller}) func getUserDatasets(userId: Principal) : async ([Nat32]) {
+    switch(_datasetOwners.get(userId)) {
+      case (?_datasets) {
+        _datasets;
+      };
+      case (_) {
+        []
+      };
+    };
+	};
 
+  public query({caller}) func searchDataset(search: Text) : async ([Nat32]) {
+    // TODO: implement
+    [1]
+	};
+
+  // READ Values
   public query({caller}) func getUserDataByDatasetId(datasetId : Nat32) : async ([T.DatasetEntry]) {
     switch(_datasetValues.get(datasetId)) {
       case (?_entryList) {
@@ -141,10 +166,6 @@ actor DatasetNFT {
         []
       };
     };
-	};
-
-  public query func getDatasetByDatasetId(datasetId : Nat32) : async (?T.DatasetConfiguration) {
-    _datasets.get(datasetId);
 	};
 
   public query func getDatasetEntryCounts(datasetIds: [Nat32]) : async [(Nat32, Nat)] {
@@ -158,7 +179,7 @@ actor DatasetNFT {
     res.toArray()
 	};
 
-  // Update Dataset
+  // UPDATE Values
   public shared({caller}) func putEntry(datasetId: Nat32, datasetValue: T.DatasetEntryInput, mode: T.UpdateMode) : () {
     // assert(Principal.equal(datasetValue.user, caller));
     let _entry: T.DatasetEntry = {
@@ -192,12 +213,7 @@ actor DatasetNFT {
     };
   };
 
-  // Delete
-  public shared({caller}) func deleteDataNFT(datasetId : Nat32) : async () {
-    assert(await FNFT.isOwner(caller, datasetId));
-    _datasets.delete(datasetId);
-	};
-
+  // DELETE Values
   public shared({caller}) func deleteUserEntry(datasetId : Nat32) : async Bool {
     switch(_datasetValues.get(datasetId)) {
       case (?_entryList) {

@@ -368,7 +368,7 @@ actor swap_contracts {
             _res.add({assetId=assetId; sales=mySales; commissions=myCommissions});
             };
         };
-        Buffer.toArray(_res)
+        _res.toArray()
     };
 
     public query({caller}) func resetDatastore() : async () {
