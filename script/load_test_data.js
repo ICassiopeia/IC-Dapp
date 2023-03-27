@@ -16,7 +16,7 @@ const ENV = process.env.ENV || "local"
 const DEFAULT_HOST = getHost(ENV)
 
 const main = async () => {
-  const actor = getActor("dataAssets", ENV, DEFAULT_HOST);
+  const actor = getActor("data_assets", ENV, DEFAULT_HOST);
 
   var datasetConfig = {
     name: "Exams dataset from Kaggle",

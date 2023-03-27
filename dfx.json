@@ -21,15 +21,15 @@
         "node_compatibility": true
       }
     },
-    "dataAssets": {
+    "data_assets": {
       "dependencies": [
         "fractional_NFT",
         "sales_contract"
       ],
-      "main": "src/dataAssets/dataAssets.mo",
+      "main": "src/data_assets/data_assets.mo",
       "type": "motoko",
       "declarations": {
-        "output": "src/dapp_frontend/src/types/dfinity/dataAssets",
+        "output": "src/dapp_frontend/src/types/dfinity/data_assets",
         "bindings": ["ts", "js"],
         "node_compatibility": true
       }
