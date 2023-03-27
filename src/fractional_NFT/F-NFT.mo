@@ -17,31 +17,17 @@ import Option "mo:base/Option";
 import Blob "mo:base/Blob";
 import Nat32 "mo:base/Nat32";
 import Text "mo:base/Text";
+import Time "mo:base/Time";
+import List "mo:base/List";
+import Buffer "mo:base/Buffer";
 
 import T "../libs/types";
+import L "../libs/libs";
 
 import ERC20 "erc20";
 
 actor fractionalNFT {
   
-  // Types
-  type AccountIdentifier = ExtCore.AccountIdentifier;
-  type SubAccount = ExtCore.SubAccount;
-  type User = ExtCore.User;
-  type Balance = ExtCore.Balance;
-  type TokenIdentifier = ExtCore.TokenIdentifier;
-  type TokenIndex  = ExtCore.TokenIndex ;
-  type Extension = ExtCore.Extension;
-  type CommonError = ExtCore.CommonError;
-  type BalanceRequest = ExtCore.BalanceRequest;
-  type BalanceResponse = ExtCore.BalanceResponse;
-  type TransferRequest = ExtCore.TransferRequest;
-  type TransferResponse = ExtCore.TransferResponse;
-  type AllowanceRequest = ExtAllowance.AllowanceRequest;
-  type ApproveRequest = ExtAllowance.ApproveRequest;
-  type Metadata = ExtCommon.Metadata;
-  type MintRequest  = ExtNonFungible.MintRequest;
-
   type DataTokenType = ERC20.erc20_token;
   
   //HTTP
@@ -59,34 +45,38 @@ actor fractionalNFT {
   };
   
   
-  private let EXTENSIONS : [Extension] = ["@ext/common", "@ext/allowance", "@ext/nonfungible"];
+  private let EXTENSIONS : [ExtCore.Extension] = ["@ext/common", "@ext/allowance", "@ext/nonfungible"];
   
   //State work
-  private stable var _registryState : [(TokenIndex, AccountIdentifier)] = [];
-  private var _registry : HashMap.HashMap<TokenIndex, AccountIdentifier> = HashMap.fromIter(_registryState.vals(), 0, ExtCore.TokenIndex.equal, ExtCore.TokenIndex.hash);
+  private stable var _registryState : [(ExtCore.TokenIndex, ExtCore.AccountIdentifier)] = [];
+  private var _registry : HashMap.HashMap<ExtCore.TokenIndex, ExtCore.AccountIdentifier> = HashMap.fromIter(_registryState.vals(), 0, ExtCore.TokenIndex.equal, ExtCore.TokenIndex.hash);
   
-  private stable var _buyersState : [(AccountIdentifier, [TokenIndex])] = [];
-  private var _buyers : HashMap.HashMap<AccountIdentifier, [TokenIndex]> = HashMap.fromIter(_buyersState.vals(), 0, AID.equal, AID.hash);
+  private stable var _datasetRelState : [(Nat32, [ExtCore.TokenIndex])] = [];
+  private var _datasetRel : HashMap.HashMap<Nat32, [ExtCore.TokenIndex]> = HashMap.fromIter(_datasetRelState.vals(), 0, Nat32.equal, L.hash);
+  
+  private stable var _buyersState : [(ExtCore.AccountIdentifier, [ExtCore.TokenIndex])] = [];
+  private var _buyers : HashMap.HashMap<ExtCore.AccountIdentifier, [ExtCore.TokenIndex]> = HashMap.fromIter(_buyersState.vals(), 0, AID.equal, AID.hash);
 	
-  private stable var _allowancesState : [(TokenIndex, Principal)] = [];
-  private var _allowances : HashMap.HashMap<TokenIndex, Principal> = HashMap.fromIter(_allowancesState.vals(), 0, ExtCore.TokenIndex.equal, ExtCore.TokenIndex.hash);
+  private stable var _allowancesState : [(ExtCore.TokenIndex, Principal)] = [];
+  private var _allowances : HashMap.HashMap<ExtCore.TokenIndex, Principal> = HashMap.fromIter(_allowancesState.vals(), 0, ExtCore.TokenIndex.equal, ExtCore.TokenIndex.hash);
 	
-	private stable var _tokenMetadataState : [(TokenIndex, Metadata)] = [];
-  private var _tokenMetadata : HashMap.HashMap<TokenIndex, Metadata> = HashMap.fromIter(_tokenMetadataState.vals(), 0, ExtCore.TokenIndex.equal, ExtCore.TokenIndex.hash);
+	private stable var _tokenMetadataState : [(ExtCore.TokenIndex, T.Metadata)] = [];
+  private var _tokenMetadata : HashMap.HashMap<ExtCore.TokenIndex, T.Metadata> = HashMap.fromIter(_tokenMetadataState.vals(), 0, ExtCore.TokenIndex.equal, ExtCore.TokenIndex.hash);
   
-	private stable var _dataTokenState : [(TokenIndex, DataTokenType)] = [];
-  private var _dataTokens : HashMap.HashMap<TokenIndex, DataTokenType> = HashMap.fromIter(_dataTokenState.vals(), 0, ExtCore.TokenIndex.equal, ExtCore.TokenIndex.hash);
+	private stable var _dataTokenState : [(ExtCore.TokenIndex, DataTokenType)] = [];
+  private var _dataTokens : HashMap.HashMap<ExtCore.TokenIndex, DataTokenType> = HashMap.fromIter(_dataTokenState.vals(), 0, ExtCore.TokenIndex.equal, ExtCore.TokenIndex.hash);
   
-  private stable var _supply : Balance  = 0;
+  private stable var _supply : ExtCore.Balance  = 0;
   // private stable var _minter : Principal  = Principal.fromText("2lhsj-gqaaa-aaaai-acouq-cai");
   private stable var _minter : Principal  = Principal.fromText("ryjl3-tyaaa-aaaaa-aaaba-cai");
   private stable var _gifter : Principal  = _minter;
-  private stable var _nextTokenId : TokenIndex  = 0;
-  private stable var _nextToSell : TokenIndex  = 0;
+  private stable var _nextTokenId : ExtCore.TokenIndex  = 0;
+  private stable var _nextToSell : ExtCore.TokenIndex  = 0;
 
   //State functions
   system func preupgrade() {
     _registryState := Iter.toArray(_registry.entries());
+    _datasetRelState := Iter.toArray(_datasetRel.entries());
     _buyersState := Iter.toArray(_buyers.entries());
     _allowancesState := Iter.toArray(_allowances.entries());
     _tokenMetadataState := Iter.toArray(_tokenMetadata.entries());
@@ -94,13 +84,17 @@ actor fractionalNFT {
   };
   system func postupgrade() {
     _registryState := [];
+    _datasetRelState := [];
     _buyersState := [];
     _allowancesState := [];
     _tokenMetadataState := [];
     _dataTokenState := [];
   };
-  
-  public shared(msg) func disribute(user : User) : async () {
+
+  //
+  // Toniq EXT - START
+  //
+  public shared(msg) func disribute(user : ExtCore.User) : async () {
 		assert(Principal.equal(msg.caller, _minter));
 		assert(_nextToSell < _nextTokenId);
     let bearer = ExtCore.User.toAID(user);
@@ -122,7 +116,7 @@ actor fractionalNFT {
 		_minter := minter;
 	};
 	
-  public shared(msg) func freeGift(bearer : AccountIdentifier) : async ?TokenIndex {
+  public shared(msg) func freeGift(bearer : ExtCore.AccountIdentifier) : async ?ExtCore.TokenIndex {
 		assert(msg.caller == _gifter);
 		assert(_nextToSell < _nextTokenId);
     if (_nextToSell < 5000) {
@@ -143,39 +137,7 @@ actor fractionalNFT {
     }
 	};
   
-  public shared(msg) func mintNFT(token: TokenIndex, request : MintRequest, name: Text, symbol: Text, initialSupply: Nat) : async TokenIndex {
-		assert(Principal.equal(msg.caller, _minter));
-    let receiver = ExtCore.User.toAID(request.to);
-		let md : Metadata = #nonfungible({
-			metadata = request.metadata;
-		}); 
-    // Mint ERC721
-		_registry.put(token, receiver);
-		_tokenMetadata.put(token, md);
-    // Mint ERC20
-    Cycles.add(1_000_000_000_000);
-    let erc20 = await ERC20.erc20_token(name, symbol, 0, initialSupply, msg.caller);
-    let amountAccepted = await erc20.wallet_receive();
-    _dataTokens.put(token, erc20);
-    // Misc.
-		_supply := _supply + 1;
-		_nextTokenId := _nextTokenId + 1;
-    token;
-	};
-
-
-  public query func getNFTOwner(token: Nat32) : async ?Principal {
-    null
-  };
-
-  public query func findCollectionByAssetId(token: Nat32) : async ?Principal {
-    null
-  };
-
-  public shared({caller}) func transferFrom(from : Principal, to : Principal, token : Nat32) : async () {
-  };
-  
-  public shared(msg) func transfer(request: TransferRequest) : async TransferResponse {
+  public shared(msg) func transfer(request: ExtCore.TransferRequest) : async ExtCore.TransferResponse {
     if (request.amount != 1) {
 			return #err(#Other("Must use amount of 1"));
 		};
@@ -214,7 +176,7 @@ actor fractionalNFT {
     };
   };
   
-  public shared(msg) func approve(request: ApproveRequest) : async () {
+  public shared(msg) func approve(request: ExtAllowance.ApproveRequest) : async () {
 		// if (ExtCore.TokenIdentifier.isPrincipal(request.token, Principal.fromActor(this)) == false) {
 		// 	return;
 		// };
@@ -234,21 +196,21 @@ actor fractionalNFT {
     };
   };
 
-  public query func getSold() : async TokenIndex {
+  public query func getSold() : async ExtCore.TokenIndex {
     _nextToSell;
   };
-  public query func getMinted() : async TokenIndex {
+  public query func getMinted() : async ExtCore.TokenIndex {
     _nextTokenId;
   };
   public query func getMinter() : async Principal {
     _minter;
   };
   
-  public query func extensions() : async [Extension] {
+  public query func extensions() : async [ExtCore.Extension] {
     EXTENSIONS;
   };
   
-  public query func balance(request : BalanceRequest) : async BalanceResponse {
+  public query func balance(request : ExtCore.BalanceRequest) : async ExtCore.BalanceResponse {
 		// if (ExtCore.TokenIdentifier.isPrincipal(request.token, Principal.fromActor(this)) == false) {
 		// 	return #err(#InvalidToken(request.token));
 		// };
@@ -268,7 +230,7 @@ actor fractionalNFT {
     };
   };
 	
-	public query func allowance(request : AllowanceRequest) : async Result.Result<Balance, CommonError> {
+	public query func allowance(request : ExtAllowance.AllowanceRequest) : async Result.Result<ExtCore.Balance, ExtCore.CommonError> {
 		// if (ExtCore.TokenIdentifier.isPrincipal(request.token, Principal.fromActor(this)) == false) {
 		// 	return #err(#InvalidToken(request.token));
 		// };
@@ -298,14 +260,14 @@ actor fractionalNFT {
     };
   };
   
-	public query func index(token : TokenIdentifier) : async Result.Result<TokenIndex, CommonError> {
+	public query func index(token : ExtCore.TokenIdentifier) : async Result.Result<ExtCore.TokenIndex, ExtCore.CommonError> {
 		// if (ExtCore.TokenIdentifier.isPrincipal(token, Principal.fromActor(this)) == false) {
 		// 	return #err(#InvalidToken(token));
 		// };
 		#ok(ExtCore.TokenIdentifier.getIndex(token));
 	};
   
-	public query func bearer(token : TokenIdentifier) : async Result.Result<AccountIdentifier, CommonError> {
+	public query func bearer(token : ExtCore.TokenIdentifier) : async Result.Result<ExtCore.AccountIdentifier, ExtCore.CommonError> {
 		// if (ExtCore.TokenIdentifier.isPrincipal(token, Principal.fromActor(this)) == false) {
 		// 	return #err(#InvalidToken(token));
 		// };
@@ -327,25 +289,24 @@ actor fractionalNFT {
     };
 	};
   
-	public query func supply(token : TokenIdentifier) : async Result.Result<Balance, CommonError> {
+	public query func supply(token : ExtCore.TokenIdentifier) : async Result.Result<ExtCore.Balance, ExtCore.CommonError> {
     #ok(_supply);
   };
   
-  public query func getBuyers() : async [(AccountIdentifier, [TokenIndex])] {
+  public query func getBuyers() : async [(ExtCore.AccountIdentifier, [ExtCore.TokenIndex])] {
     Iter.toArray(_buyers.entries());
   };
-  public query func getRegistry() : async [(TokenIndex, AccountIdentifier)] {
+  public query func getRegistry() : async [(ExtCore.TokenIndex, ExtCore.AccountIdentifier)] {
     Iter.toArray(_registry.entries());
   };
-  public query func getAllowances() : async [(TokenIndex, Principal)] {
+  public query func getAllowances() : async [(ExtCore.TokenIndex, Principal)] {
     Iter.toArray(_allowances.entries());
   };
-  public query func getTokens() : async [(TokenIndex, Metadata)] {
+  public query func getTokens() : async [(ExtCore.TokenIndex, T.Metadata)] {
     Iter.toArray(_tokenMetadata.entries());
   };
 
-    
-  public query func metadata(token : TokenIdentifier) : async Result.Result<Metadata, CommonError> {
+  public query func metadata(token : ExtCore.TokenIdentifier) : async Result.Result<T.Metadata, ExtCore.CommonError> {
     // if (ExtCore.TokenIdentifier.isPrincipal(token, Principal.fromActor(this)) == false) {
 		// 	return #err(#InvalidToken(token));
 		// };
@@ -386,25 +347,14 @@ actor fractionalNFT {
     };
   };
   
-  func getTokenData(tokenid : ?Text) : ?[Nat8] {
+  func getTokenData(tokenid : ?Text) : ?T.Metadata {
     switch (tokenid) {
       case (?token) {
         // if (ExtCore.TokenIdentifier.isPrincipal(token, Principal.fromActor(this)) == false) {
         //   return null;
         // };
         let tokenind = ExtCore.TokenIdentifier.getIndex(token);
-        switch (_tokenMetadata.get(tokenind)) {
-          case (?token_metadata) {
-            switch(token_metadata) {
-              case (#fungible data) return null;
-              case (#nonfungible data) return ?Blob.toArray(Option.unwrap(data.metadata));
-            };
-          };
-          case (_) {
-            return null;
-          };
-        };
-				return null;
+				return _tokenMetadata.get(tokenind);
       };
       case (_) {
         return null;
@@ -440,5 +390,153 @@ actor fractionalNFT {
   };
   public query func availableCycles() : async Nat {
     return Cycles.balance();
+  };
+  //
+  // Toniq EXT - END
+  //
+
+
+
+
+  //
+  // Fractional NFT
+  //
+
+  private func _updateAssetOfferList(dataAssetId : Nat32, token: ExtCore.TokenIndex, mode: T.UpdateMode) : () {
+    switch(_datasetRel.get(dataAssetId)) {
+      case (?_tokenList) {
+        if(mode == #Add) {
+          _datasetRel.put(dataAssetId, List.toArray(List.push(token, List.fromArray(_tokenList))));
+        } else {
+          _datasetRel.put(dataAssetId, Array.filter<ExtCore.TokenIndex>(_tokenList, func(t) { return (ExtCore.TokenIndex.equal(t, token) == false) } ));
+        };
+      };
+      case (_) {
+        if(mode == #Add) {
+          _datasetRel.put(dataAssetId, Array.make<ExtCore.TokenIndex>(token));
+        };
+      };
+    };
+  };
+
+  // CREATE
+  public shared(msg) func mintOfferNft(
+    token: ExtCore.TokenIndex,
+    request : T.MintRequest,
+    name: Text,
+    symbol: Text,
+    initialSupply: Nat) : async ExtCore.TokenIndex {
+
+    assert(Principal.equal(msg.caller, _minter));
+    let receiver = ExtCore.User.toAID(request.to);
+		let md : T.Metadata = {
+      name= name;
+      description= request.metadata.description;
+      dataAssetId= request.metadata.dataAssetId;
+      isEnabled= true;
+      price= request.metadata.price;
+      supply= request.metadata.supply;
+      timeLimitSeconds= request.metadata.timeLimitSeconds;
+      dimensionRestrictList= request.metadata.dimensionRestrictList;
+      isGdrpEnabled= request.metadata.isGdrpEnabled;
+      createdAt= Time.now();
+      updatedAt= Time.now();
+    }; 
+    // Mint ERC721
+		_registry.put(token, receiver);
+		_tokenMetadata.put(token, md);
+    _updateAssetOfferList(request.metadata.dataAssetId, token, #Add);
+    // Mint ERC20
+    Cycles.add(1_000_000_000_000);
+    let erc20 = await ERC20.erc20_token(name, symbol, 0, initialSupply, msg.caller);
+    let amountAccepted = await erc20.wallet_receive();
+    _dataTokens.put(token, erc20);
+    // Misc.
+		_supply := _supply + 1;
+		_nextTokenId := _nextTokenId + 1;
+    token;
+	};
+
+  // READ
+  public query func getOfferNfts(dataAssetId: Nat32) : async ?[ExtCore.TokenIndex] {
+    _datasetRel.get(dataAssetId)
+  };
+
+  public query func getManyOfferNftMetdata(tokens: [ExtCore.TokenIndex]) : async [(ExtCore.TokenIndex, T.Metadata)] {
+    var res = Buffer.Buffer<(ExtCore.TokenIndex, T.Metadata)>(1);
+    for(token in Iter.fromArray(tokens)) {
+      switch(_tokenMetadata.get(token)) {
+        case (?_metadata) res.add((token, _metadata));
+        case (_) {};
+      };
+    };
+    res.toArray()
+  };
+
+  public func getOfferNftACL(token: ExtCore.TokenIndex) : async [(ExtCore.AccountIdentifier, ExtCore.Balance)] {
+    switch(_dataTokens.get(token)) {
+      case (?_erc20) (await _erc20.getBalances());
+      case (_) [];
+    };
+  };
+
+  public func getOfferNftStats(token: ExtCore.TokenIndex) : async (T.NftStats) {
+    switch(_dataTokens.get(token)) {
+      case (?_erc20) (await _erc20.getNftStats());
+      case (_) T.nullNftStats;
+    };
+  };
+
+  public func getManyOfferNftStats(tokens: [ExtCore.TokenIndex]) : async [(ExtCore.TokenIndex, T.NftStats)] {
+    var res = Buffer.Buffer<(ExtCore.TokenIndex, T.NftStats)>(tokens.size());
+    for(token in Iter.fromArray(tokens)) {
+      let subResult: T.NftStats = switch(_dataTokens.get(token)) {
+        case (?_erc20) (await _erc20.getNftStats());
+        case (_) T.nullNftStats;
+      };
+      res.add((token, subResult))
+    };
+    res.toArray()
+  };
+
+  public shared({caller}) func isUserAnNftOwner(token: ExtCore.TokenIndex) : async Bool {
+    switch(_dataTokens.get(token)) {
+      case (?_erc20) (await _erc20.isUserOwner(AID.fromPrincipal(caller, null)));
+      case (_) false;
+    };
+  };
+
+  public query func findCollectionByAssetId(token: Nat32) : async () {
+  };
+
+  // DELETE
+  public query func deleteNFT(token: Nat32) : async Bool {
+    switch(_tokenMetadata.get(token)) {
+      case (?_meta) {
+        let newMeta = {
+          name= _meta.name;
+          description= _meta.description;
+          dataAssetId= _meta.dataAssetId;
+          isEnabled= false;
+          price= _meta.price;
+          supply= _meta.supply;
+          timeLimitSeconds= _meta.timeLimitSeconds;
+          dimensionRestrictList= _meta.dimensionRestrictList;
+          isGdrpEnabled= _meta.isGdrpEnabled;
+          createdAt= _meta.createdAt;
+          updatedAt= Time.now();
+        };
+        _tokenMetadata.put(token, newMeta);
+        _registry.delete(token);
+        _updateAssetOfferList(_meta.dataAssetId, token, #Remove);
+        _dataTokens.delete(token);
+        true
+      };
+      case (_) false;
+    }
+  };
+
+  // TRANSFER
+  public shared({caller}) func transferFrom(from : Principal, to : Principal, token : Nat32) : async () {
   };
 }

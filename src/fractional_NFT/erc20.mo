@@ -12,6 +12,7 @@ import Principal "mo:base/Principal";
 import Result "mo:base/Result";
 import Iter "mo:base/Iter";
 import Nat64 "mo:base/Nat64";
+import Nat "mo:base/Nat";
 
 //Get the path right
 import AID "../toniq-ext/motoko/util/AccountIdentifier";
@@ -19,36 +20,21 @@ import ExtCore "../toniq-ext/motoko/ext/Core";
 import ExtCommon "../toniq-ext/motoko/ext/Common";
 import ExtAllowance "../toniq-ext/motoko/ext/Allowance";
 
+import T "../libs/types";
+
 actor class erc20_token(init_name: Text, init_symbol: Text, init_decimals: Nat8, init_supply: ExtCore.Balance, init_owner: Principal) {
   
-  // Types
-  type AccountIdentifier = ExtCore.AccountIdentifier;
-  type SubAccount = ExtCore.SubAccount;
-  type User = ExtCore.User;
-  type Balance = ExtCore.Balance;
-  type TokenIdentifier = ExtCore.TokenIdentifier;
-  type Extension = ExtCore.Extension;
-  type CommonError = ExtCore.CommonError;
-  
-  type BalanceRequest = ExtCore.BalanceRequest;
-  type BalanceResponse = ExtCore.BalanceResponse;
-  type TransferRequest = ExtCore.TransferRequest;
-  type TransferResponse = ExtCore.TransferResponse;
-  type AllowanceRequest = ExtAllowance.AllowanceRequest;
-  type ApproveRequest = ExtAllowance.ApproveRequest;
-
-  type Metadata = ExtCommon.Metadata;
-  
-  private let EXTENSIONS : [Extension] = ["@ext/common", "@ext/allowance"];
+  // Types  
+  private let EXTENSIONS : [ExtCore.Extension] = ["@ext/common", "@ext/allowance"];
 
   // Cycles
   private var capacity = 1000000000000000000;
   private var balance = Cycles.balance();
   
   //State work
-  private stable var _balancesState : [(AccountIdentifier, Balance)] = [];
-  private var _balances : HashMap.HashMap<AccountIdentifier, Balance> = HashMap.fromIter(_balancesState.vals(), 0, AID.equal, AID.hash);
-  private var _allowances = HashMap.HashMap<AccountIdentifier, HashMap.HashMap<Principal, Balance>>(1, AID.equal, AID.hash);
+  private stable var _balancesState : [(ExtCore.AccountIdentifier, ExtCore.Balance)] = [];
+  private var _balances : HashMap.HashMap<ExtCore.AccountIdentifier, ExtCore.Balance> = HashMap.fromIter(_balancesState.vals(), 0, AID.equal, AID.hash);
+  private var _allowances = HashMap.HashMap<ExtCore.AccountIdentifier, HashMap.HashMap<Principal, ExtCore.Balance>>(1, AID.equal, AID.hash);
   
   //State functions
   system func preupgrade() {
@@ -59,18 +45,18 @@ actor class erc20_token(init_name: Text, init_symbol: Text, init_decimals: Nat8,
     _balancesState := [];
   };
   
-    //Initial state - could set via class setter
-  private stable let METADATA : Metadata = #fungible({
+  //Initial state - could set via class setter
+  private stable let METADATA : ExtCommon.Metadata = #fungible({
     name = init_name;
     symbol = init_symbol;
     decimals = init_decimals;
     metadata = null;
   }); 
-  private stable var _supply : Balance  = init_supply;
+  private stable var _supply : ExtCore.Balance  = init_supply;
   
   _balances.put(AID.fromPrincipal(init_owner, null), _supply);
 
-  public shared(msg) func transfer(request: TransferRequest) : async TransferResponse {
+  public shared(msg) func transfer(request: ExtCore.TransferRequest) : async ExtCore.TransferResponse {
     let owner = ExtCore.User.toAID(request.from);
     let spender = AID.fromPrincipal(msg.caller, request.subaccount);
     let receiver = ExtCore.User.toAID(request.to);
@@ -87,7 +73,7 @@ actor class erc20_token(init_name: Text, init_symbol: Text, init_decimals: Nat8,
                     if (spender_allowance < request.amount) {
                       return #err(#Other("Spender allowance exhausted"));
                     } else {
-                      var spender_allowance_new : Balance = spender_allowance - request.amount;
+                      var spender_allowance_new : ExtCore.Balance = spender_allowance - request.amount;
                       owner_allowances.put(msg.caller, spender_allowance_new);
                       _allowances.put(owner, owner_allowances);
                     };
@@ -103,7 +89,7 @@ actor class erc20_token(init_name: Text, init_symbol: Text, init_decimals: Nat8,
             };
           };
           
-          var owner_balance_new : Balance = owner_balance - request.amount;
+          var owner_balance_new : ExtCore.Balance = owner_balance - request.amount;
           _balances.put(owner, owner_balance_new);
           var receiver_balance_new = switch (_balances.get(receiver)) {
             case (?receiver_balance) {
@@ -125,7 +111,7 @@ actor class erc20_token(init_name: Text, init_symbol: Text, init_decimals: Nat8,
     };
   };
   
-  public shared(msg) func approve(request: ApproveRequest) : async () {
+  public shared(msg) func approve(request: ExtAllowance.ApproveRequest) : async () {
     let owner = AID.fromPrincipal(msg.caller, request.subaccount);
     switch (_allowances.get(owner)) {
       case (?owner_allowances) {
@@ -133,18 +119,18 @@ actor class erc20_token(init_name: Text, init_symbol: Text, init_decimals: Nat8,
         _allowances.put(owner, owner_allowances);
       };
       case (_) {
-        var temp = HashMap.HashMap<Principal, Balance>(1, Principal.equal, Principal.hash);
+        var temp = HashMap.HashMap<Principal, ExtCore.Balance>(1, Principal.equal, Principal.hash);
         temp.put(request.spender, request.allowance);
         _allowances.put(owner, temp);
       };
     };
   };
 
-  public query func extensions() : async [Extension] {
+  public query func extensions() : async [ExtCore.Extension] {
     EXTENSIONS;
   };
   
-  public query func balanceUser(request : BalanceRequest) : async BalanceResponse {
+  public query func balanceUser(request : ExtCore.BalanceRequest) : async ExtCore.BalanceResponse {
     let aid = ExtCore.User.toAID(request.user);
     switch (_balances.get(aid)) {
       case (?balance) {
@@ -156,14 +142,45 @@ actor class erc20_token(init_name: Text, init_symbol: Text, init_decimals: Nat8,
     }
   };
 
-  public query func supply(token : TokenIdentifier) : async Result.Result<Balance, CommonError> {
+  public query func supply(token : ExtCore.TokenIdentifier) : async Result.Result<ExtCore.Balance, ExtCore.CommonError> {
     #ok(_supply);
   };
   
-  public query func metadata(token : TokenIdentifier) : async Result.Result<Metadata, CommonError> {
+  public query func metadata(token : ExtCore.TokenIdentifier) : async Result.Result<ExtCommon.Metadata, ExtCore.CommonError> {
     #ok(METADATA);
   };
+
+  //
+  // Extention to Standard for F-NFT: START
+  //
+  public func getBalances() : async ([(ExtCore.AccountIdentifier, ExtCore.Balance)]) {
+    Iter.toArray(_balances.entries())
+  };
+
+  public func getNftStats() : async (T.NftStats) {
+    return {
+      supply= _supply;
+      left= _supply-_balances.size();
+    };
+  };
+
+  public func isUserOwner(user: ExtCore.AccountIdentifier) : async (Bool) {
+    switch (_balances.get(user)) {
+      case (?balance) {
+        if(Nat.greaterOrEqual(balance, 1)) {return true;}
+        else {return false;}
+      };
+      case (_) {
+        return false;
+      };
+    }
+  };
+
   
+  //
+  // Extention to Standard for F-NFT: END
+  //
+
   //Internal cycle management - good general case
   // public func acceptCycles() : async () {
   //   let available = Cycles.available();

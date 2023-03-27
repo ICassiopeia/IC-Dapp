@@ -6,9 +6,13 @@ import Text "mo:base/Text";
 import Hash "mo:base/Hash";
 
 import ExtNonFungible "../toniq-ext/motoko/ext/NonFungible";
+import ExtCore "../toniq-ext/motoko/ext/Core";
 
 module {
 
+  // 
+  // Data Assets: START
+  //
   public type DatasetCreateRequest = {
     metadataNFT: Blob;
     category: [Text];
@@ -115,9 +119,48 @@ module {
     entries : [DatasetEntry];
   };
 
+  // 
+  // Data Assets: END
+  //
+
   public type UpdateMode = {
     #Add;
     #Remove;
   };
 
+  // 
+  // F-NFT: START
+  //
+  public type Metadata = {
+    name: Text;
+    description: Text;
+    dataAssetId: Nat32;
+    isEnabled: Bool;
+    price: Nat32;
+    supply: Nat32;
+    timeLimitSeconds: Nat32;
+    dimensionRestrictList: [Nat32];
+    isGdrpEnabled: Bool;
+    createdAt: Int;
+    updatedAt: Int;
+  };
+
+  public type MintRequest = {
+    to : ExtCore.User;
+    metadata : Metadata;
+  };
+
+  public type NftStats = {
+    supply : ExtCore.Balance;
+    left : ExtCore.Balance;
+  };
+
+  public let nullNftStats: NftStats = {
+    supply= 0;
+    left= 0;
+  };
+
+  // 
+  // F-NFT: END
+  //
 }
