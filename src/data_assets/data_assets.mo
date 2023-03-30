@@ -66,20 +66,15 @@ actor DatasetNFT {
     };
 		_datasets.put(_nextDatasetId, _datasetConfig);
     switch(_datasetOwners.get(caller)) {
-      case (?_list) {_datasetOwners.put(caller, Array.append(_list, [_nextDatasetId]))};
+      case (?_list) {
+        var _ownerList: Buffer.Buffer<Nat32> = Buffer.fromArray<Nat32>(_list);
+        _ownerList.add(_nextDatasetId);
+        _datasetOwners.put(caller, Buffer.toArray(_ownerList))
+        };
       case (_) {_datasetOwners.put(caller, [_nextDatasetId])};
     };
     // Configure init producer
 		_datasetProducers.put(_nextDatasetId, [caller]);
-    // Mint NFT
-    // let nftRequest: ExtNonFungible.MintRequest = {to= #principal(caller); metadata=?request.metadataNFT};
-    // let _ = await FNFT.mintNFT(
-    //   _nextDatasetId,
-    //   nftRequest,
-    //   "DATATOKEN" #  Nat32.toText(_nextDatasetId),
-    //   "DTOK" # Nat32.toText(_nextDatasetId),
-    //   request.initialSupply
-    //   );
     _nextDatasetId
 	};
 
@@ -89,8 +84,6 @@ actor DatasetNFT {
     assert(L._exists<Nat32, T.DatasetConfiguration>(_datasets, _nextDatasetId) == false);
 		_datasets.delete(datasetId);
 		_datasetProducers.delete(datasetId);
-    // TODO: clean related NFTs (disable and keep records)
-    // let _ = await FNFT.mintNFT(datasetId);
   };
 
   // Producer auth
@@ -137,7 +130,7 @@ actor DatasetNFT {
         case (_) {};
       };
     };
-    res.toArray()
+    Buffer.toArray(res)
 	};
 
   public query({caller}) func getUserDatasets(userId: Principal) : async ([Nat32]) {
@@ -176,7 +169,7 @@ actor DatasetNFT {
     for(item in filteredList.entries()) {
       res.add((item.0, item.1.size()));
     };
-    res.toArray()
+    Buffer.toArray(res)
 	};
 
   // UPDATE Values

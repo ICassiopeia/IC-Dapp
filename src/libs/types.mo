@@ -150,6 +150,12 @@ module {
     metadata : Metadata;
   };
 
+  public type OfferNftInfo = {
+    id : ExtCore.TokenIndex;
+    owner : ExtCore.AccountIdentifier;
+    metadata : Metadata;
+  };
+
   public type NftStats = {
     supply : ExtCore.Balance;
     left : ExtCore.Balance;
@@ -163,4 +169,85 @@ module {
   // 
   // F-NFT: END
   //
+
+
+  // 
+  // Sales contracts: START
+  //
+  public type BuyOrder = {
+    buyer: ExtCore.AccountIdentifier;
+    offerNftId: ExtCore.TokenIndex;
+    purchasePrice: Nat32;
+    createdAt: Int;
+    updatedAt: Int;
+  };
+
+  public type BuyOrderInput = {
+    offerNftId: ExtCore.TokenIndex;
+    purchasePrice: Nat32;
+  };
+
+  public type SalesStats = {
+    offerNftId: ExtCore.TokenIndex;
+    count: Nat32;
+    price: Nat32;
+  };
+
+  public type SalesContractStatus = {
+    #pending;
+    #blocked;
+    #rejected;
+    #approved;
+  };
+
+  public type SalesContract = {
+    buyer: ExtCore.AccountIdentifier;
+    seller: ExtCore.AccountIdentifier;
+    nftId:Nat32;
+    purchasePrice: Nat32;
+    status: SalesContractStatus;
+    executionDate: Int;
+    transactions: [Transaction];
+    buyOrder: BuyOrder;
+  };
+
+  public type SalesContractType = {
+    id: Nat32;
+    contract: SalesContract;
+  };
+
+  public type Transaction = {
+    from: ExtCore.AccountIdentifier;
+    to: ExtCore.AccountIdentifier;
+    value: Nat32;
+    transactionType: TransactionType;
+    executionDate: Int;
+  };
+
+  public type TransactionType = {
+    #base;
+    #commission;
+    #mint;
+  };
+
+  public type TopSalesStats = {
+    lastWeek: Nat32;
+    twoWeeksAgo: Nat32;
+    count: Nat32;
+  };
+
+  public type SalesContractInput = {
+    offerId: Nat32;
+    buyOrder: BuyOrder;
+  };
+
+  public type CreatorSalesStats = {
+    offerNftId: ExtCore.TokenIndex;
+    sales: Nat32;
+    commissions: Nat32;
+  };
+  // 
+  // Sales contracts: END
+  //
+
 }

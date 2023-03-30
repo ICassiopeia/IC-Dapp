@@ -20,6 +20,7 @@ import Text "mo:base/Text";
 import Time "mo:base/Time";
 import List "mo:base/List";
 import Buffer "mo:base/Buffer";
+import Nat "mo:base/Nat";
 
 import T "../libs/types";
 import L "../libs/libs";
@@ -102,7 +103,9 @@ actor fractionalNFT {
     
     switch (_buyers.get(bearer)) {
       case (?nfts) {
-        _buyers.put(bearer, Array.append(nfts, [_nextToSell]));
+        var _nfts: Buffer.Buffer<ExtCore.TokenIndex> = Buffer.fromArray<ExtCore.TokenIndex>(nfts);
+        _nfts.add(_nextToSell);
+        _buyers.put(bearer, Buffer.toArray(_nfts));
       };
       case (_) {
         _buyers.put(bearer, [_nextToSell]);
@@ -124,7 +127,9 @@ actor fractionalNFT {
       _registry.put(tokenid, bearer);
       switch (_buyers.get(bearer)) {
         case (?nfts) {
-          _buyers.put(bearer, Array.append(nfts, [tokenid]));
+          var _nfts: Buffer.Buffer<ExtCore.TokenIndex> = Buffer.fromArray<ExtCore.TokenIndex>(nfts);
+          _nfts.add(tokenid);
+          _buyers.put(bearer, Buffer.toArray(_nfts));
         };
         case (_) {
           _buyers.put(bearer, [tokenid]);
@@ -441,7 +446,7 @@ actor fractionalNFT {
       isGdrpEnabled= request.metadata.isGdrpEnabled;
       createdAt= Time.now();
       updatedAt= Time.now();
-    }; 
+    };
     // Mint ERC721
 		_registry.put(token, receiver);
 		_tokenMetadata.put(token, md);
@@ -462,15 +467,19 @@ actor fractionalNFT {
     _datasetRel.get(dataAssetId)
   };
 
-  public query func getManyOfferNftMetdata(tokens: [ExtCore.TokenIndex]) : async [(ExtCore.TokenIndex, T.Metadata)] {
-    var res = Buffer.Buffer<(ExtCore.TokenIndex, T.Metadata)>(1);
+  public query func getManyOfferNftMetdata(tokens: [ExtCore.TokenIndex]) : async [T.OfferNftInfo] {
+    var res = Buffer.Buffer<T.OfferNftInfo>(tokens.size());
     for(token in Iter.fromArray(tokens)) {
       switch(_tokenMetadata.get(token)) {
-        case (?_metadata) res.add((token, _metadata));
+        case (?_metadata) res.add({
+          id=token;
+          owner=Option.unwrap(_registry.get(token));
+          metadata=_metadata;
+        });
         case (_) {};
       };
     };
-    res.toArray()
+    Buffer.toArray(res)
   };
 
   public func getOfferNftACL(token: ExtCore.TokenIndex) : async [(ExtCore.AccountIdentifier, ExtCore.Balance)] {
@@ -496,7 +505,7 @@ actor fractionalNFT {
       };
       res.add((token, subResult))
     };
-    res.toArray()
+    Buffer.toArray(res)
   };
 
   public shared({caller}) func isUserAnNftOwner(token: ExtCore.TokenIndex) : async Bool {
@@ -504,6 +513,29 @@ actor fractionalNFT {
       case (?_erc20) (await _erc20.isUserOwner(AID.fromPrincipal(caller, null)));
       case (_) false;
     };
+  };
+
+  public func isBuyable(token: ExtCore.TokenIndex) : async Bool {
+    let check1 = switch(_tokenMetadata.get(token)) {
+      case (?_config) _config.isEnabled==true;
+      case (_) false;
+    };
+    let check2 = switch(_dataTokens.get(token)) {
+      case (?_erc20) {
+        let stats = await _erc20.getNftStats();
+        Nat.greaterOrEqual(stats.left, 1)
+      };
+      case (_) false;
+    };
+    check1 and check2
+  };
+
+  public func getSellingPrice(token: ExtCore.TokenIndex) : async Nat32 {
+    let check1: Nat32 = switch(_tokenMetadata.get(token)) {
+      case (?_config) _config.price;
+      case (_) 0;
+    };
+    check1
   };
 
   public query func findCollectionByAssetId(token: Nat32) : async () {
@@ -537,6 +569,6 @@ actor fractionalNFT {
   };
 
   // TRANSFER
-  public shared({caller}) func transferFrom(from : Principal, to : Principal, token : Nat32) : async () {
+  public shared({caller}) func transferFrom(from : ExtCore.AccountIdentifier, to : ExtCore.AccountIdentifier, token : Nat32) : async () {
   };
 }
