@@ -10,17 +10,17 @@ const DEFAULT_HOST = getHost(ENV)
 const MOCK_DATASETS = [
   {
     name: "Exams dataset from Kaggle",
-    assetId: "kaggle_exams_dataset",
+    asset_id: "kaggle_exams_dataset",
     target: "exams.csv",
   },
   {
     name: "Film dataset",
-    assetId: "kaggle_film_dataset",
+    asset_id: "kaggle_film_dataset",
     target: "film.csv",
   },
   {
     name: "Cars dataset from Kaggle",
-    assetId: "kaggle_cars_dataset",
+    asset_id: "kaggle_cars_dataset",
     target: "cars.csv",
   }
 ]
@@ -30,9 +30,9 @@ const loadDataset = async (config) => {
 
   console.log("Loading dataset", config.target)
 
-  var datasetConfig = {
+  var dataset_config = {
     name: config.name,
-    assetId: config.assetId,
+    asset_id: config.asset_id,
     dimensions: [],
   }
   const data = fs.readFileSync(path.join(__dirname, config.target), 'utf8');
@@ -51,26 +51,26 @@ const loadDataset = async (config) => {
         const col = results.meta.fields[i]
         dimKV[col] = i
         dimKVTypes[col] = typeof results.data[0][col] === 'number' ? 'num' : 'cat'
-        var dimensionType;
-        if( typeof results.data[0][col] === 'number') dimensionType = {Numerical: null}
-        else if(!results.data.find(row => row[col] === null) && [...new Set(results.data.map(row => row[col]).flat())].length < results.data.length/10) dimensionType = {Categorical: [...new Set(results.data.map(row => row[col]).flat())]}
-        else dimensionType = {Freetext: null}
-        datasetConfig.dimensions.push({
-          dimensionId : i,
+        var dimension_type;
+        if( typeof results.data[0][col] === 'number') dimension_type = {Numerical: null}
+        else if(!results.data.find(row => row[col] === null) && [...new Set(results.data.map(row => row[col]).flat())].length < results.data.length/10) dimension_type = {Categorical: [...new Set(results.data.map(row => row[col]).flat())]}
+        else dimension_type = {Freetext: null}
+        dataset_config.dimensions.push({
+          dimension_id : i,
           title: col,
-          dimensionType
+          dimension_type
         })
       }
       // format values
       for(let i=0; i<results.data.length; i++) {
         const values = Object.entries(results.data[i]).map(([key, val]) => {
           return {
-            dimensionId: dimKV[key],
-            value: dimKVTypes[key]==='num' ? {metric: parseInt(val*100)} : {attribute: val || "null"},
+            dimension_id: dimKV[key],
+            value: dimKVTypes[key]==='num' ? {Metric: parseInt(val*100)} : {Attribute: val || "null"},
           }
         })
         datasetEntries.push({
-          id: {id: i},
+          id: {Id: i},
           values,
         })
 
@@ -82,20 +82,17 @@ const loadDataset = async (config) => {
   var datasetId, dataset
   try{
     const createDatasetRequest = {
-      metadataNFT: JSON.stringify({name: datasetConfig.name, assetId: datasetConfig.assetId})
+      metadata_nft: JSON.stringify({name: dataset_config.name, asset_id: dataset_config.asset_id})
         .split('').map(x => x.charCodeAt()), // to convert to JSON string to blockchain "blob" data type
       category: ["demographics", "social"],
-      datasetConfig,
+      dataset_config,
     }
-    // console.log("createDatasetRequest", createDatasetRequest)
     datasetId = await actor.createDataSet(createDatasetRequest);
-    dataset = (await actor.getDatasetByDatasetId(datasetId))[0];
+    dataset = await actor.getDatasetByDatasetId(datasetId);
   } catch (e) {
     console.error(e);
   };
-  console.log(`Dataset ${datasetId} configuration:`, dataset)
-  // console.log("Sample:",datasetEntries[0])
-
+  // console.log(`Dataset ${datasetId} configuration:`, dataset)
   try{
     if(datasetId) {
       console.log(`Uploading ${datasetEntries.length} entries for dataset ${datasetId}`)
