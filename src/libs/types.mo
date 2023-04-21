@@ -20,9 +20,10 @@ module {
   };
 
   public type DimensionType = {
+    #Numerical;
     #Binary;
     #Categorical: [Text];
-    #Numerical;
+    #Freetext;
   };
 
   public type DatasetConfiguration = {
@@ -98,9 +99,16 @@ module {
 
   public type DatasetEntry = {
     id : RecordKey;
+    producer : Principal;
     values : [DatasetValue];
     createdAt: Int;
     updatedAt: Int;
+  };
+
+  public type SelectedEntry = {
+    producer : Principal;
+    columnHash: Text;
+    values : [DatasetValue];
   };
 
   public type DatasetEntryInput = {
@@ -117,6 +125,18 @@ module {
     datasetId : Nat32;
     datasetConfig: DatasetConfiguration;
     entries : [DatasetEntry];
+  };
+
+  public type AnayticsType = {
+    attributes : [Value];
+    count: Nat;
+    // metrics : [DatasetEntry];
+  };
+
+  public type ProducerState = {
+    id : Principal;
+    isEnabled: Bool;
+    records: Nat32;
   };
 
   // 
@@ -180,11 +200,6 @@ module {
     purchasePrice: Nat32;
     createdAt: Int;
     updatedAt: Int;
-  };
-
-  public type BuyOrderInput = {
-    offerNftId: ExtCore.TokenIndex;
-    purchasePrice: Nat32;
   };
 
   public type SalesStats = {

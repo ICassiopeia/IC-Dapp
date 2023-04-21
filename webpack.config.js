@@ -4,6 +4,10 @@ const HtmlWebpackPlugin = require("html-webpack-plugin");
 const TerserPlugin = require("terser-webpack-plugin");
 const CopyPlugin = require("copy-webpack-plugin");
 
+const network = process.env.DFX_NETWORK || (process.env.NODE_ENV === "production" ? "ic" : "local");
+
+const DFINITY_NETWORK = network === 'local' ? "http://localhost:8000" : "https://ic0.app"
+
 function initCanisterEnv() {
   let localCanisters, prodCanisters;
   try {
@@ -20,10 +24,6 @@ function initCanisterEnv() {
   } catch (error) {
     console.log("No production canister_ids.json found. Continuing with local");
   }
-
-  const network =
-    process.env.DFX_NETWORK ||
-    (process.env.NODE_ENV === "production" ? "ic" : "local");
 
   const canisterConfig = network === "local" ? localCanisters : prodCanisters;
 
@@ -130,6 +130,7 @@ module.exports = {
     }),
     new webpack.EnvironmentPlugin({
       NODE_ENV: "development",
+      DFINITY_NETWORK,
       ...canisterEnvVariables,
     }),
     new webpack.ProvidePlugin({
@@ -162,5 +163,6 @@ module.exports = {
     hot: true,
     watchFiles: [path.resolve(__dirname, "src", frontendDirectory, "src")],
     liveReload: true,
+    historyApiFallback: true,
   },
 };

@@ -432,7 +432,6 @@ actor fractionalNFT {
     symbol: Text,
     initialSupply: Nat) : async ExtCore.TokenIndex {
 
-    assert(Principal.equal(msg.caller, _minter));
     let receiver = ExtCore.User.toAID(request.to);
 		let md : T.Metadata = {
       name= name;
@@ -531,11 +530,10 @@ actor fractionalNFT {
   };
 
   public func getSellingPrice(token: ExtCore.TokenIndex) : async Nat32 {
-    let check1: Nat32 = switch(_tokenMetadata.get(token)) {
+    switch(_tokenMetadata.get(token)) {
       case (?_config) _config.price;
       case (_) 0;
     };
-    check1
   };
 
   public query func findCollectionByAssetId(token: Nat32) : async () {
