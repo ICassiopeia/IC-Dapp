@@ -13,8 +13,7 @@
     "prebuild": "npm run generate",
     "start": "webpack serve --mode development --env development",
     "prestart": "npm run generate",
-    "generate": "dfx generate",
-    "copy:types": "rsync -avr .declarations/** --exclude='assets/' --exclude='idl/' --exclude='*.wasm' --exclude='*.most' --exclude='*.did' --delete src/dapp_frontend/src/types/dfinity/ && rsync -avr .dfx/$(echo ${DFX_NETWORK:-'**'})/canisters/** --exclude='assets/' --exclude='idl/' --exclude='*.wasm' --exclude='*.most' --exclude='*.did' --delete declarations"
+    "generate": "dfx generate"
   },
   "devDependencies": {
     "@dfinity/agent": "0.15.1",

@@ -1,9 +1,10 @@
 use itertools::Itertools;
-use data_assets::{AnayticsPrep, AnalyticsType, AnalyticsSuperType, DatasetConfiguration, DatasetCreateRequest, DatasetEntry, DatasetEntryInput, ProducerState, RecordKey, StableState, UpdateMode, Value};
+use data_assets::*;
 use std::collections::{HashMap};
 use std::cell::RefCell;
 use std::mem;
-// use itertools::Itertools;
+use std::time::{SystemTime, UNIX_EPOCH};
+
 use ic_cdk::storage;
 use ic_cdk_macros::{self, post_upgrade, pre_upgrade, query, update};
 use ic_cdk::export::Principal;
@@ -21,14 +22,17 @@ async fn create_data_set(request: DatasetCreateRequest) -> u32 {
     NEXT_DATASET_ID.with(|current_id| {
         let mut id = current_id.borrow_mut();
         *id += 1;
+        let now = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_millis();
         let dataset_config = DatasetConfiguration {
             name: request.dataset_config.name,
+            description: request.dataset_config.description,
+            jupyter_notebook: request.dataset_config.jupyter_notebook,
             asset_id: request.dataset_config.asset_id,
             dimensions: request.dataset_config.dimensions,
             is_active: true,
             category: request.category,
-            created_at: 0,
-            updated_at: 0,
+            created_at: now,
+            updated_at: now,
         };
         DATASETS.with(|map| {
             let mut map = map.borrow_mut();
@@ -47,7 +51,7 @@ async fn create_data_set(request: DatasetCreateRequest) -> u32 {
         // Configure init producer
         DATASET_PRODUCERS.with(|map| {
             let mut map = map.borrow_mut(); 
-            let new_producer = ProducerState {id:caller, records:0, is_enabled:true};
+            let new_producer = ProducerState {id:caller, is_enabled:true};
             map.insert(*id, vec![new_producer]);
         });
         *id
@@ -84,7 +88,7 @@ fn is_user_producer(dataset_id: u32) -> bool {
 
 #[update(name = "updateProducerList")]
 async fn update_producer_list(dataset_id : u32, user: Principal, mode: UpdateMode) -> () {
-    let new_entry = vec![ ProducerState {id: user, records:0, is_enabled:true}];
+    let new_entry = vec![ ProducerState {id: user, is_enabled:true}];
     DATASET_PRODUCERS.with(|map| {
         let mut map: std::cell::RefMut<HashMap<u32, Vec<ProducerState>>> = map.borrow_mut();
         match map.get_mut(&dataset_id) {
@@ -102,6 +106,16 @@ async fn update_producer_list(dataset_id : u32, user: Principal, mode: UpdateMod
                 }
             }
         }
+    })
+}
+
+#[query(name = "searchDataset")]
+fn search_dataset(search : String) -> Vec<u32> {
+    DATASETS.with(|map| {
+       map.borrow()
+        .iter()
+        .filter_map(|(&k, ref v)| if v.name.contains(&search) || v.description.contains(&search) {Some(k)} else {None})
+        .collect()
     })
 }
 
@@ -148,12 +162,13 @@ fn get_dataset_entry_counts(dataset_ids : Vec<u32>) -> Vec<(u32, usize)> {
 }
 
 fn put_entry(caller: Principal, dataset_id: u32, dataset_value: &DatasetEntryInput, mode: UpdateMode) -> () {
+    let now = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_millis();
     let entry = DatasetEntry {
         id: dataset_value.id,
         producer: caller,
         values: dataset_value.values.iter().cloned().collect(),
-        created_at: 0,
-        updated_at: 0,
+        created_at: now,
+        updated_at: now,
     };
     DATASET_VALUES.with(|map| {
         let mut map = map.borrow_mut();
@@ -237,9 +252,28 @@ fn get_producers_stats(dataset_id : u32) -> Vec<(Principal, usize)> {
                         (id, count)
                     })
                     .collect()
-
                 },
             None => vec![(ic_cdk::api::caller(), 0)]
+        }
+    })
+}
+
+#[query(name = "getDatasetActivity")]
+fn get_dataset_activity(
+    dataset_id : u32,
+) -> Option<Vec<DateMetrics>> {
+    DATASET_VALUES.with(|map| {
+        match map.borrow().get(&dataset_id) {
+            Some(entries) => {
+                let res = entries
+                    .iter()
+                    .group_by(|rec| rec.created_at / 86_400_000)
+                    .into_iter()
+                    .map(|(k, v)| DateMetrics {date: k, value: v.count() as u32})
+                    .collect::<Vec<DateMetrics>>();
+                Some(res)
+            },
+            None => {None}
         }
     })
 }
@@ -256,7 +290,7 @@ fn fetch_analytics(
     DATASET_VALUES.with(|map| {
         match map.borrow().get(&dataset_id) {
             Some(values) => {
-                // 1. Filter data
+                // 1. Filter & prepare data
                 let mut base_data =  values.clone();
                 let op0_size: u32 = base_data.clone().len() as u32;
                 if filters.len() > 0 {
@@ -271,8 +305,7 @@ fn fetch_analytics(
                 fn transform_record(att: &Vec<u32>, met: &Vec<u32>, record: &DatasetEntry) -> AnayticsPrep {
                     let attribute_values = record.values
                         .iter()
-                        .filter(|&val| att.contains(&val.dimension_id))
-                        .map(|val| val.value.clone())
+                        .filter_map(|val| if att.contains(&val.dimension_id) {Some(val.value.clone())} else {None} )
                         .collect::<Vec<Value>>();
 
                     let mut metrics_values = record.values.clone();
@@ -284,7 +317,6 @@ fn fetch_analytics(
                     }
                 }
                 let mut prepared_data: Vec<AnayticsPrep> = base_data
-                    .clone()
                     .iter()
                     .map(|rec| transform_record(&attributes, &metrics, rec))
                     .collect();
@@ -293,7 +325,6 @@ fn fetch_analytics(
 
                 // 3. Aggregate
                 let mut aggregated = prepared_data
-                    .clone()
                     .iter()
                     .group_by(|&x| x.att_hash.clone())
                     .into_iter()

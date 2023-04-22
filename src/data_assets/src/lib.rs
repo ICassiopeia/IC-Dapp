@@ -1,6 +1,5 @@
 use std::fmt;
-use std::fmt::Write;
-use std::collections::{HashMap};
+use std::collections::HashMap;
 use candid::{CandidType, Principal};
 use serde::{Deserialize, Serialize};
 
@@ -8,11 +7,13 @@ use serde::{Deserialize, Serialize};
 pub struct DatasetConfiguration {
     pub name : String,
     pub asset_id : String,
+    pub description: String,
+    pub jupyter_notebook: Option<String>,
     pub dimensions: Vec<DatasetDimension>,
     pub is_active: bool,
     pub category: Vec<String>,
-    pub created_at: i128,
-    pub updated_at: i128,
+    pub created_at: u128,
+    pub updated_at: u128,
 }
 
 #[derive(CandidType, Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -35,8 +36,8 @@ pub struct DatasetEntry {
     pub id : RecordKey,
     pub producer : Principal,
     pub values : Vec<DatasetValue>,
-    pub created_at : i128,
-    pub updated_at : i128,
+    pub created_at : u128,
+    pub updated_at : u128,
 }
 
 #[derive(CandidType, Copy, Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -79,15 +80,16 @@ pub struct DatasetCreateRequest {
 #[derive(CandidType, Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct DatasetConfigurationInput {
     pub name : String,
+    pub description : String,
     pub asset_id : String,
     pub dimensions : Vec<DatasetDimension>,
+    pub jupyter_notebook: Option<String>,
 }
 
 #[derive(CandidType, Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct ProducerState {
     pub id : Principal,
     pub is_enabled: bool,
-    pub records: u32,
 }
 
 #[derive(CandidType, Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -124,5 +126,12 @@ pub struct AnayticsPrep {
     pub att_hash : String,
     pub att : Vec<Value>,
     pub met: Vec<DatasetValue>,
+}
+
+
+#[derive(CandidType, Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct DateMetrics {
+    pub date : u128,
+    pub value : u32,
 }
 

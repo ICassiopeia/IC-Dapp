@@ -17,7 +17,6 @@ type ProducerState =
  record {
    id: principal;
    is_enabled: bool;
-   records: nat32;
  };
 type DimensionType = 
  variant {
@@ -59,18 +58,27 @@ type DatasetCreateRequest =
 type DatasetConfigurationInput = 
  record {
    asset_id: text;
+   description: text;
+   jupyter_notebook: opt text;
    dimensions: vec DatasetDimension;
    name: text;
  };
 type DatasetConfiguration = 
  record {
    asset_id: text;
+   description: text;
+   jupyter_notebook: opt text;
    category: vec text;
    created_at: int;
    dimensions: vec DatasetDimension;
    is_active: bool;
    name: text;
    updated_at: int;
+ };
+type DateMetrics = 
+ record {
+   date: int;
+   value: nat32;
  };
 type AnalyticsType = 
  record {
@@ -92,6 +100,7 @@ service : {
   fetchAnalytics: (nat32, vec nat32, vec nat32, vec record {nat32; Value}, bool, nat32) ->
     (AnalyticsSuperType) query;
   getDataByDatasetId: (nat32) -> (opt vec DatasetEntry) query;
+  getDatasetActivity: (nat32) -> (opt vec DateMetrics) query;
   getDatasetByDatasetId: (nat32) -> (opt DatasetConfiguration) query;
   getDatasetEntryCounts: (vec nat32) -> (vec record {
                                                nat32;
@@ -121,4 +130,5 @@ service : {
   isUserProducer: (nat32) -> (bool);
   putManyEntries: (nat32, vec DatasetEntryInput) -> () oneway;
   updateProducerList: (nat32, principal, UpdateMode) -> ();
+  searchDataset: (nat32) -> (vec nat32) query;
 }

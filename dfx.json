@@ -27,7 +27,7 @@
       "type": "rust",
       "declarations": {
         "output": "src/dapp_frontend/src/types/dfinity/data_assets",
-        "bindings": ["ts", "js"],
+        "bindings": ["ts", "js", "did"],
         "node_compatibility": true
       }
     }
