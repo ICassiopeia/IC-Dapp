@@ -2,27 +2,34 @@ use itertools::Itertools;
 use data_assets::*;
 use std::collections::{HashMap};
 use std::cell::RefCell;
+use std::env;
 use std::mem;
-use std::time::{SystemTime, UNIX_EPOCH};
+use ic_cdk::api::time;
 
 use ic_cdk::storage;
 use ic_cdk_macros::{self, post_upgrade, pre_upgrade, query, update};
 use ic_cdk::export::Principal;
+
 
 thread_local! {
     pub static DATASETS: RefCell<HashMap<u32, DatasetConfiguration>>  = RefCell::new(HashMap::new());
     pub static DATASET_VALUES: RefCell<HashMap<u32, Vec<DatasetEntry>>> = RefCell::new(HashMap::new());
     pub static DATASET_OWNERS: RefCell<HashMap<Principal, Vec<u32>>> = RefCell::new(HashMap::new());
     pub static DATASET_PRODUCERS: RefCell<HashMap<u32, Vec<ProducerState>>> = RefCell::new(HashMap::new());
+    pub static QUERIES: RefCell<HashMap<u32, Query>> = RefCell::new(HashMap::new());
     pub static NEXT_DATASET_ID: RefCell<u32> = RefCell::new(0);
+    pub static NEXT_QUERY_ID: RefCell<u32> = RefCell::new(0);
 }
+// #[ic_cdk_macros::import(canister = "fractional_NFT")]
+// struct ImportedCanister;
+
 
 #[update(name = "createDataSet")]
 async fn create_data_set(request: DatasetCreateRequest) -> u32 {
     NEXT_DATASET_ID.with(|current_id| {
         let mut id = current_id.borrow_mut();
         *id += 1;
-        let now = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_millis();
+        let now = time();
         let dataset_config = DatasetConfiguration {
             name: request.dataset_config.name,
             description: request.dataset_config.description,
@@ -162,7 +169,7 @@ fn get_dataset_entry_counts(dataset_ids : Vec<u32>) -> Vec<(u32, usize)> {
 }
 
 fn put_entry(caller: Principal, dataset_id: u32, dataset_value: &DatasetEntryInput, mode: UpdateMode) -> () {
-    let now = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_millis();
+    let now = time();
     let entry = DatasetEntry {
         id: dataset_value.id,
         producer: caller,
@@ -275,6 +282,29 @@ fn get_dataset_activity(
             },
             None => {None}
         }
+    })
+}
+
+#[update(name = "putQueryRequest")]
+fn put_query_request(query: QueryInput) -> u32 {
+    NEXT_QUERY_ID.with(|current_id| {
+        let mut id = current_id.borrow_mut();
+        *id += 1;
+        // Check dataset exists
+        // ic_cdk::api::call::call(env::var("CANISTER_ID_fractional_NFT").is_ok(), )
+
+        // Check NFT ownership
+        QUERIES.with(|map| {
+            let now = time();
+            let final_query = Query {
+                timestamp: now,
+                user: ic_cdk::api::caller(),
+                query_meta: query,
+                query_state: QueryState::Pending,
+            };
+            map.borrow_mut().insert(id.clone(),final_query);
+            *id
+        })
     })
 }
 

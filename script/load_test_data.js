@@ -10,19 +10,25 @@ const DEFAULT_HOST = getHost(ENV)
 const MOCK_DATASETS = [
   {
     name: "Exams dataset from Kaggle",
+    description: "kaggle_exams_dataset",
+    jupyter_notebook: ["kaggle_exams_dataset"],
     asset_id: "kaggle_exams_dataset",
     target: "exams.csv",
   },
-  {
-    name: "Film dataset",
-    asset_id: "kaggle_film_dataset",
-    target: "film.csv",
-  },
-  {
-    name: "Cars dataset from Kaggle",
-    asset_id: "kaggle_cars_dataset",
-    target: "cars.csv",
-  }
+  // {
+  //   name: "Film dataset",
+  //   asset_id: "kaggle_film_dataset",
+  //   description: "kaggle_film_dataset",
+  //   jupyter_notebook: "kaggle_film_dataset",
+  //   target: "film.csv",
+  // },
+  // {
+  //   name: "Cars dataset from Kaggle",
+  //   description: "Kaggle",
+  //   jupyter_notebook: "Kaggle",
+  //   asset_id: "kaggle_cars_dataset",
+  //   target: "cars.csv",
+  // }
 ]
 
 const loadDataset = async (config) => {
@@ -32,6 +38,8 @@ const loadDataset = async (config) => {
 
   var dataset_config = {
     name: config.name,
+    description: config.description,
+    jupyter_notebook: config.jupyter_notebook,
     asset_id: config.asset_id,
     dimensions: [],
   }

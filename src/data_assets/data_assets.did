@@ -37,10 +37,10 @@ type DatasetEntryInput =
  };
 type DatasetEntry = 
  record {
-   created_at: int;
+   created_at: nat64;
    id: RecordKey;
    producer: principal;
-   updated_at: int;
+   updated_at: nat64;
    values: vec DatasetValue;
  };
 type DatasetDimension = 
@@ -69,15 +69,15 @@ type DatasetConfiguration =
    description: text;
    jupyter_notebook: opt text;
    category: vec text;
-   created_at: int;
+   created_at: nat64;
    dimensions: vec DatasetDimension;
    is_active: bool;
    name: text;
-   updated_at: int;
+   updated_at: nat64;
  };
 type DateMetrics = 
  record {
-   date: int;
+   date: nat64;
    value: nat32;
  };
 type AnalyticsType = 
@@ -91,6 +91,27 @@ type AnalyticsSuperType =
  record {
    analytics: vec AnalyticsType;
    counts: record{nat32; nat32; nat32; nat32; nat32;};
+ };
+type QueryInput = 
+ record {
+   dataset_id : nat32;
+   nft_id : nat32;
+   attributes : vec nat32;
+   metrics : vec nat32;
+   filters : vec record {nat32; Value};
+ };
+type Query = 
+ record {
+   timestamp: nat64;
+   user: principal;
+   query_meta: QueryInput;
+   query_state : QueryState;
+ };
+type QueryState = 
+ variant {
+   Executed;
+   Pending;
+   Rejected: text;
  };
 service : {
   createDataSet: (DatasetCreateRequest) -> (nat32);

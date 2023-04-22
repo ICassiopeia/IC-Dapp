@@ -27,7 +27,7 @@ import L "../libs/libs";
 
 import ERC20 "erc20";
 
-actor fractionalNFT {
+actor FractionalNFT {
   
   type DataTokenType = ERC20.erc20_token;
   

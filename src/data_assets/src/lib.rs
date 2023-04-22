@@ -12,8 +12,8 @@ pub struct DatasetConfiguration {
     pub dimensions: Vec<DatasetDimension>,
     pub is_active: bool,
     pub category: Vec<String>,
-    pub created_at: u128,
-    pub updated_at: u128,
+    pub created_at: u64,
+    pub updated_at: u64,
 }
 
 #[derive(CandidType, Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -36,8 +36,8 @@ pub struct DatasetEntry {
     pub id : RecordKey,
     pub producer : Principal,
     pub values : Vec<DatasetValue>,
-    pub created_at : u128,
-    pub updated_at : u128,
+    pub created_at : u64,
+    pub updated_at : u64,
 }
 
 #[derive(CandidType, Copy, Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -131,7 +131,29 @@ pub struct AnayticsPrep {
 
 #[derive(CandidType, Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct DateMetrics {
-    pub date : u128,
+    pub date : u64,
     pub value : u32,
 }
 
+#[derive(CandidType, Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct QueryInput {
+    pub dataset_id : u32,
+    pub nft_id : u32,
+    pub attributes : Vec<u32>,
+    pub metrics : Vec<u32>,
+    pub filters : Vec<(u32, Value)>,
+}
+#[derive(CandidType, Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct Query {
+    pub timestamp : u64,
+    pub user : Principal,
+    pub query_meta : QueryInput,
+    pub query_state : QueryState,
+}
+
+#[derive(CandidType, Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub enum QueryState {
+    Executed,
+    Pending,
+    Rejected(String),
+}
