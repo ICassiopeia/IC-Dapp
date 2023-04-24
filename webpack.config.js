@@ -84,7 +84,7 @@ module.exports = {
         ]
       },
       {
-        test: /\.(png|svg|jpg|webm)$/,
+        test: /\.(png|svg|ipynb|jpg|webm)$/,
         use: [
           'file-loader',
         ],
@@ -131,6 +131,7 @@ module.exports = {
     new webpack.EnvironmentPlugin({
       NODE_ENV: "development",
       DFINITY_NETWORK,
+      DFX_NETWORK: "local",
       ...canisterEnvVariables,
     }),
     new webpack.ProvidePlugin({

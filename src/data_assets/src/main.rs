@@ -133,6 +133,16 @@ fn get_dataset_by_dataset_id(dataset_id : u32) -> Option<DatasetConfiguration> {
     })
 }
 
+#[query(name = "getAllDatasets")]
+fn get_all_datasets() -> Vec<(u32, DatasetConfiguration)> {
+    DATASETS.with(|map: &RefCell<HashMap<u32, DatasetConfiguration>>| {
+       map.borrow()
+        .iter()
+        .map(|(k,v)| (k.clone(), v.clone()))
+        .collect()
+    })
+}
+
 #[query(name = "getManyDatasets")]
 fn get_many_datasets(ids : Vec<u32>) -> Vec<(u32, Option<DatasetConfiguration>)> {
     DATASETS.with(|map| {
@@ -233,17 +243,26 @@ fn delete_all_entries_of_user() -> () {
 }
 
 // Analytical functions
-#[query(name = "getDataByDatasetId")]
-fn get_data_by_dataset_id(dataset_id : u32) -> Option<Vec<DatasetEntry>> {
+fn get_data_by_dataset_id(dataset_id : u32, sample: Option<u32>, attributes: Option<Vec<u8>>) -> Vec<DatasetEntry> {
     DATASET_VALUES.with(|map| {
-        map.borrow().get(&dataset_id).cloned()
-    })
-}
-
-#[query(name = "getRowsByDatasetId")]
-fn get_rows_by_dataset_id(dataset_id : u32, rows: u32) -> Option<Vec<DatasetEntry>> {
-    DATASET_VALUES.with(|map| {
-        map.borrow().get(&dataset_id).cloned()
+        let mut values = map.borrow().get(&dataset_id).cloned().unwrap_or(vec![]);
+        values = match attributes {
+            Some(att) => values
+                .iter()
+                .map(|x| {
+                    let filtered_values = x.values.iter().filter(|y| att.contains(&y.dimension_id)).cloned().collect();
+                    DatasetEntry {
+                        values: filtered_values,
+                        ..x.clone()
+                    }
+                })
+                .collect(),
+            None => values
+        };
+        match sample {
+            Some(limit) => values.into_iter().by_ref().take(limit as usize).collect(),
+            None => values
+        }
     })
 }
 
@@ -304,37 +323,41 @@ fn get_dataset_query_activity(
     })
 }
 
-#[update(name = "getAnalytics")]
-async fn get_analytics(query: QueryInput) -> Result<AnalyticsSuperType, String> {
-    // Check dataset exists
-    // Check NFT ownership
+
+async fn get_dataset_athorized_columns(dataset_id : u32) -> (Vec<u8>, bool) {
     let canister_id = env::var("CANISTER_ID_fractional_NFT").expect("Could not decode the principal.");
     let access_request: Vec<NftMetadata> =
         ic_cdk::call::<(u32, Principal), (Vec<NftMetadata>, )>(
             Principal::from_text(&canister_id).expect("Could not decode the principal."),
             &"getUserDatasetAccess".to_string(),
-            (query.dataset_id.clone(), ic_cdk::api::caller())
+            (dataset_id, ic_cdk::api::caller())
         ).await.unwrap().0;
-
     if access_request.len()>=1 {
-        let authorized = access_request
+        (access_request
             .iter()
             .map(|x| x.dimensionRestrictList.clone())
             .flatten()
             .unique()
-            .collect::<Vec<u8>>();
+            .collect::<Vec<u8>>()
+        , access_request[0].isGdrpEnabled)
+    } else {
+        (vec![], false)
+    }
+}
 
+
+#[update(name = "getAnalytics")]
+async fn get_analytics(query: QueryInput) -> Result<AnalyticsSuperType, String> {
+    // Check NFT ownership
+    let (authorized, is_gdpr_enabled) = get_dataset_athorized_columns(query.dataset_id).await;
+    if authorized.len()>=1 {
         let unauthorized_attributes = query.attributes
             .iter()
             .filter(|x| !authorized.contains(x))
             .cloned()
             .collect::<Vec<u8>>();
 
-        let is_gdpr_enabled = access_request[0].isGdrpEnabled;
-
-        if unauthorized_attributes.len()>0 {
-            return Err("User does not have access to following attributes".to_string());
-        } else {
+        if unauthorized_attributes.len()==0 {
             NEXT_QUERY_ID.with(|current_id| {
                 let mut id = current_id.borrow_mut();
                 *id += 1;
@@ -362,6 +385,8 @@ async fn get_analytics(query: QueryInput) -> Result<AnalyticsSuperType, String> 
                     ))
                 })
             })
+        } else {
+            return Err("User does not have access to following attributes".to_string());
         }
     } else  {
         Err("User does not own NFT linked to this dataset.".to_string())
@@ -467,6 +492,19 @@ fn fetch_analytics(
         }
     })
 }
+
+#[query(name = "getDatasetDownload")]
+async fn get_dataset_download(dataset_id : u32) -> Vec<DatasetEntry> {
+    let (authorized, _) = get_dataset_athorized_columns(dataset_id).await;
+    get_data_by_dataset_id(dataset_id, None, Some(authorized))
+}
+
+
+#[query(name = "getDatasetSample")]
+fn get_dataset_sample(dataset_id : u32) -> Vec<DatasetEntry> {
+    get_data_by_dataset_id(dataset_id, Some(50), None)
+}
+
 
 fn main() {}
 
