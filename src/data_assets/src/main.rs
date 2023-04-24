@@ -499,41 +499,50 @@ async fn get_dataset_download(dataset_id : u32) -> Vec<DatasetEntry> {
     get_data_by_dataset_id(dataset_id, None, Some(authorized))
 }
 
-
 #[query(name = "getDatasetSample")]
 fn get_dataset_sample(dataset_id : u32) -> Vec<DatasetEntry> {
     get_data_by_dataset_id(dataset_id, Some(50), None)
 }
 
-
 fn main() {}
 
 #[pre_upgrade]
 fn pre_upgrade() {
-    let datasets = DATASETS.with(|state| mem::take(&mut *state.borrow_mut()));
-    let dataset_values = DATASET_VALUES.with(|state| mem::take(&mut *state.borrow_mut()));
-    let dataset_owners = DATASET_OWNERS.with(|state| mem::take(&mut *state.borrow_mut()));
-    let dataset_producers = DATASET_PRODUCERS.with(|state| mem::take(&mut *state.borrow_mut()));
-    let next_dataset_id = NEXT_DATASET_ID.with(|state| mem::take(&mut *state.borrow_mut()));
-    let stable_state = StableState { datasets, dataset_values, dataset_owners, dataset_producers, next_dataset_id };
-    storage::stable_save((stable_state,)).unwrap();
+    let next_dataset_id_copied: u32 = NEXT_DATASET_ID.with(|counter_ref| {
+        let reader = counter_ref.borrow();
+        *reader
+    });
+    DATASETS.with(|datasets_ref| {
+        DATASET_VALUES.with(|dataset_values_ref| {
+            DATASET_OWNERS.with(|dataset_owners_ref| {
+                DATASET_PRODUCERS.with(|dataset_producers_ref| {
+                    let old_state = StableState {
+                        datasets: mem::take(&mut datasets_ref.borrow_mut()),
+                        dataset_values: mem::take(&mut dataset_values_ref.borrow_mut()),
+                        dataset_owners: mem::take(&mut dataset_owners_ref.borrow_mut()),
+                        dataset_producers: mem::take(&mut dataset_producers_ref.borrow_mut()),
+                        next_dataset_id: next_dataset_id_copied,
+                    };
+                    storage::stable_save((old_state,)).unwrap();
+                })
+            })
+        })
+    });
 }
 
-// #[post_upgrade]
-// fn post_upgrade() {
-//     let (StableState {
-//             datasets,
-//             dataset_values,
-//             dataset_owners,
-//             dataset_producers,
-//             next_dataset_id 
-//         },) = match storage::stable_restore() {
-//             Ok((canister_data, )) => canister_data,
-//             Err(e) => panic!("Failed to decode canister data with error {}", e),
-//         };
-//     DATASETS.with(|state0| *state0.borrow_mut() = datasets);
-//     DATASET_VALUES.with(|state0| *state0.borrow_mut() = dataset_values);
-//     DATASET_OWNERS.with(|state0| *state0.borrow_mut() = dataset_owners);
-//     DATASET_PRODUCERS.with(|state0| *state0.borrow_mut() = dataset_producers);
-//     NEXT_DATASET_ID.with(|state0| *state0.borrow_mut() = next_dataset_id);
-// }
+#[post_upgrade]
+fn post_upgrade() {
+    let (old_state,): (StableState,) = storage::stable_restore().unwrap();
+    DATASETS.with(|datasets_ref| {
+        DATASET_VALUES.with(|dataset_values_ref| {
+            DATASET_OWNERS.with(|dataset_owners_ref| {
+                DATASET_PRODUCERS.with(|dataset_producers_ref| {
+                    *datasets_ref.borrow_mut() = old_state.datasets;
+                    *dataset_values_ref.borrow_mut() = old_state.dataset_values;
+                    *dataset_owners_ref.borrow_mut() = old_state.dataset_owners;
+                    *dataset_producers_ref.borrow_mut() = old_state.dataset_producers;
+                })
+            })
+        })
+    });
+}

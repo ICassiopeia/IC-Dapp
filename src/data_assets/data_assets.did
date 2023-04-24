@@ -150,13 +150,13 @@ service : {
   getAnalytics: (QueryInput) -> (Result) query;
   getDatasetActivity: (nat32) -> (opt vec DateMetrics) query;
   getDatasetByDatasetId: (nat32) -> (opt DatasetConfiguration) query;
-  getDatasetDownload: (nat32) -> (opt vec DatasetEntry) query;
+  getDatasetDownload: (nat32) -> (vec DatasetEntry) query;
   getDatasetEntryCounts: (vec nat32) -> (vec record {
                                                nat32;
                                                nat;
                                              }) query;
   getDatasetQueryActivity: (nat32) -> (opt vec DateMetrics) query;
-  getDatasetSample: (nat32) -> (opt vec DatasetEntry) query;
+  getDatasetSample: (nat32) -> (vec DatasetEntry) query;
   getGDPRAggregatedDataset: (nat32, nat32, nat32) ->
    (vec record {
           Value;
