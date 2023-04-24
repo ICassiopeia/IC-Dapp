@@ -514,6 +514,32 @@ actor FractionalNFT {
     };
   };
 
+  public shared({caller}) func getUserDatasetAccess(dataAssetId: Nat32, targerUser: ?Principal) : async ([T.Metadata]) {
+    let user: Principal = switch(targerUser) {
+      case(?principal) principal;
+      case(_) caller;
+    };
+    switch(_datasetRel.get(dataAssetId)) {
+      case (?_nfts) {
+        var arr = Buffer.Buffer<T.Metadata>(_nfts.size());
+        for(nft in Iter.fromArray(_nfts)) {
+          switch(_dataTokens.get(nft)) {
+            case (?_erc20) {
+                if(await _erc20.isUserOwner(AID.fromPrincipal(user, null)))
+                  switch(_tokenMetadata.get(nft)) {
+                    case (?_meta) arr.add(_meta);
+                    case (_) {};
+                  };
+              };
+            case (_) {};
+          };
+        };
+        Buffer.toArray(arr)
+      };
+      case (_) [];
+    };
+  };
+
   public func isBuyable(token: ExtCore.TokenIndex) : async Bool {
     let check1 = switch(_tokenMetadata.get(token)) {
       case (?_config) _config.isEnabled==true;
@@ -527,6 +553,13 @@ actor FractionalNFT {
       case (_) false;
     };
     check1 and check2
+  };
+
+  public func getFNftStats(token: ExtCore.TokenIndex) : async T.NftStats {
+    switch(_dataTokens.get(token)) {
+      case (?_erc20) await _erc20.getNftStats();
+      case (_) {return {supply= 9999; left= 9999}};
+    }
   };
 
   public func getSellingPrice(token: ExtCore.TokenIndex) : async Nat32 {

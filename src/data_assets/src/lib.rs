@@ -18,7 +18,7 @@ pub struct DatasetConfiguration {
 
 #[derive(CandidType, Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct DatasetDimension {
-    pub dimension_id : u32,
+    pub dimension_id : u8,
     pub title : String,
     pub dimension_type : DimensionType,
 }
@@ -47,7 +47,7 @@ pub enum RecordKey {
 }
 #[derive(CandidType, Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct DatasetValue {
-    pub dimension_id : u32,
+    pub dimension_id : u8,
     pub value : Value,
 }
 
@@ -111,7 +111,7 @@ pub enum UpdateMode {
 pub struct AnalyticsType {
     pub group_key : String,
     pub attributes : Vec<Value>,
-    pub metrics : HashMap::<u32, u32>,
+    pub metrics : HashMap::<u8, u32>,
     pub count : u32,
 }
 
@@ -138,10 +138,9 @@ pub struct DateMetrics {
 #[derive(CandidType, Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct QueryInput {
     pub dataset_id : u32,
-    pub nft_id : u32,
-    pub attributes : Vec<u32>,
-    pub metrics : Vec<u32>,
-    pub filters : Vec<(u32, Value)>,
+    pub attributes : Vec<u8>,
+    pub metrics : Vec<u8>,
+    pub filters : Vec<(u8, Value)>,
 }
 #[derive(CandidType, Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Query {
@@ -149,11 +148,35 @@ pub struct Query {
     pub user : Principal,
     pub query_meta : QueryInput,
     pub query_state : QueryState,
+    pub is_gdpr : bool,
+    pub gdpr_limit : u32,
 }
 
 #[derive(CandidType, Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub enum QueryState {
-    Executed,
+    Accepted,
     Pending,
     Rejected(String),
+}
+
+#[derive(CandidType, Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub enum AnalyticsError {
+    Unauthorized,
+    TokenExpired,
+    Other(String),
+}
+
+#[derive(CandidType, Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct NftMetadata {
+    pub name : String,
+    pub description : String,
+    pub dataAssetId : u32,
+    pub isEnabled : bool,
+    pub price : u32,
+    pub supply : u32,
+    pub timeLimitSeconds : u32,
+    pub dimensionRestrictList : Vec<u8>,
+    pub isGdrpEnabled : bool,
+    pub createdAt : u64,
+    pub updatedAt : u64,
 }

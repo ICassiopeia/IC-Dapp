@@ -15,20 +15,20 @@ const MOCK_DATASETS = [
     asset_id: "kaggle_exams_dataset",
     target: "exams.csv",
   },
-  // {
-  //   name: "Film dataset",
-  //   asset_id: "kaggle_film_dataset",
-  //   description: "kaggle_film_dataset",
-  //   jupyter_notebook: "kaggle_film_dataset",
-  //   target: "film.csv",
-  // },
-  // {
-  //   name: "Cars dataset from Kaggle",
-  //   description: "Kaggle",
-  //   jupyter_notebook: "Kaggle",
-  //   asset_id: "kaggle_cars_dataset",
-  //   target: "cars.csv",
-  // }
+  {
+    name: "Film dataset",
+    asset_id: "kaggle_film_dataset",
+    description: "kaggle_film_dataset",
+    jupyter_notebook: "kaggle_film_dataset",
+    target: "film.csv",
+  },
+  {
+    name: "Cars dataset from Kaggle",
+    description: "Kaggle",
+    jupyter_notebook: "Kaggle",
+    asset_id: "kaggle_cars_dataset",
+    target: "cars.csv",
+  }
 ]
 
 const loadDataset = async (config) => {

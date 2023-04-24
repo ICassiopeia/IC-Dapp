@@ -1,6 +1,6 @@
 use itertools::Itertools;
 use data_assets::*;
-use std::collections::{HashMap};
+use std::collections::HashMap;
 use std::cell::RefCell;
 use std::env;
 use std::mem;
@@ -135,9 +135,12 @@ fn get_dataset_by_dataset_id(dataset_id : u32) -> Option<DatasetConfiguration> {
 
 #[query(name = "getManyDatasets")]
 fn get_many_datasets(ids : Vec<u32>) -> Vec<(u32, Option<DatasetConfiguration>)> {
-    ids.iter()
-        .map(|id| (*id, DATASETS.with(|map| map.borrow().get(&id).cloned())))
-        .collect()
+    DATASETS.with(|map| {
+        let map = map.borrow();
+        ids.iter()
+            .map(|id| (*id, map.get(&id).cloned()))
+            .collect()
+    })
 }
 
 #[query(name = "getUserDatasets")]
@@ -274,7 +277,7 @@ fn get_dataset_activity(
             Some(entries) => {
                 let res = entries
                     .iter()
-                    .group_by(|rec| rec.created_at / 86_400_000)
+                    .group_by(|rec| rec.created_at / 1_000_000 / 3600 / 24)
                     .into_iter()
                     .map(|(k, v)| DateMetrics {date: k, value: v.count() as u32})
                     .collect::<Vec<DateMetrics>>();
@@ -285,35 +288,91 @@ fn get_dataset_activity(
     })
 }
 
-#[update(name = "putQueryRequest")]
-fn put_query_request(query: QueryInput) -> u32 {
-    NEXT_QUERY_ID.with(|current_id| {
-        let mut id = current_id.borrow_mut();
-        *id += 1;
-        // Check dataset exists
-        // ic_cdk::api::call::call(env::var("CANISTER_ID_fractional_NFT").is_ok(), )
-
-        // Check NFT ownership
-        QUERIES.with(|map| {
-            let now = time();
-            let final_query = Query {
-                timestamp: now,
-                user: ic_cdk::api::caller(),
-                query_meta: query,
-                query_state: QueryState::Pending,
-            };
-            map.borrow_mut().insert(id.clone(),final_query);
-            *id
-        })
+#[query(name = "getDatasetQueryActivity")]
+fn get_dataset_query_activity(
+    dataset_id : u32,
+) -> Vec<DateMetrics> {
+    QUERIES.with(|map| {
+        map.borrow()
+            .iter()
+            // .filter(|(&id, &query): (&u32, &Query)| query.query_meta.dataset_id == dataset_id)
+            .filter(|(_, query)| query.query_meta.dataset_id == dataset_id)
+            .group_by(|(_, query)| query.timestamp / 1_000_000 / 3600 / 24 )
+            .into_iter()
+            .map(|(k, v)| DateMetrics {date: k, value: v.count() as u32})
+            .collect::<Vec<DateMetrics>>()
     })
 }
 
-#[query(name = "fetchAnalytics")]
+#[update(name = "getAnalytics")]
+async fn get_analytics(query: QueryInput) -> Result<AnalyticsSuperType, String> {
+    // Check dataset exists
+    // Check NFT ownership
+    let canister_id = env::var("CANISTER_ID_fractional_NFT").expect("Could not decode the principal.");
+    let access_request: Vec<NftMetadata> =
+        ic_cdk::call::<(u32, Principal), (Vec<NftMetadata>, )>(
+            Principal::from_text(&canister_id).expect("Could not decode the principal."),
+            &"getUserDatasetAccess".to_string(),
+            (query.dataset_id.clone(), ic_cdk::api::caller())
+        ).await.unwrap().0;
+
+    if access_request.len()>=1 {
+        let authorized = access_request
+            .iter()
+            .map(|x| x.dimensionRestrictList.clone())
+            .flatten()
+            .unique()
+            .collect::<Vec<u8>>();
+
+        let unauthorized_attributes = query.attributes
+            .iter()
+            .filter(|x| !authorized.contains(x))
+            .cloned()
+            .collect::<Vec<u8>>();
+
+        let is_gdpr_enabled = access_request[0].isGdrpEnabled;
+
+        if unauthorized_attributes.len()>0 {
+            return Err("User does not have access to following attributes".to_string());
+        } else {
+            NEXT_QUERY_ID.with(|current_id| {
+                let mut id = current_id.borrow_mut();
+                *id += 1;
+        
+                let query_state = QueryState::Pending;
+        
+                QUERIES.with(|map| {
+                    let now = time();
+                    let final_query = Query {
+                        timestamp: now,
+                        user: ic_cdk::api::caller(),
+                        query_meta: query.clone(),
+                        query_state: query_state.clone(),
+                        is_gdpr: is_gdpr_enabled.clone(),
+                        gdpr_limit: 5,
+                    };
+                    map.borrow_mut().entry(id.clone()).or_insert(final_query);
+                    Ok(fetch_analytics(
+                        query.dataset_id,
+                        query.attributes,
+                        query.metrics,
+                        query.filters,
+                        is_gdpr_enabled,
+                        5,
+                    ))
+                })
+            })
+        }
+    } else  {
+        Err("User does not own NFT linked to this dataset.".to_string())
+    }
+}
+
 fn fetch_analytics(
     dataset_id : u32,
-    attributes : Vec<u32>,
-    metrics : Vec<u32>,
-    filters : Vec<(u32, Value)>,
+    attributes : Vec<u8>,
+    metrics : Vec<u8>,
+    filters : Vec<(u8, Value)>,
     is_gdpr : bool,
     gdpr_limit : u32
 ) -> AnalyticsSuperType {
@@ -332,7 +391,7 @@ fn fetch_analytics(
                 let op1_size: u32 = base_data.clone().len() as u32;
 
                 // 2. Prepare data
-                fn transform_record(att: &Vec<u32>, met: &Vec<u32>, record: &DatasetEntry) -> AnayticsPrep {
+                fn transform_record(att: &Vec<u8>, met: &Vec<u8>, record: &DatasetEntry) -> AnayticsPrep {
                     let attribute_values = record.values
                         .iter()
                         .filter_map(|val| if att.contains(&val.dimension_id) {Some(val.value.clone())} else {None} )
@@ -359,23 +418,25 @@ fn fetch_analytics(
                     .group_by(|&x| x.att_hash.clone())
                     .into_iter()
                     .map(|(ids, records)| -> AnalyticsType {
-                        let aggregates: (HashMap::<u32, u32>, Vec<Value>, usize) = records.into_iter().fold((HashMap::<u32, u32>::new(), vec![], 0), |(mut acc, mut attributes, mut count), record| {
-                            if attributes.len()==0 {attributes = record.att.clone();}
-                            count += 1;
-                            for metric in metrics.iter() {
-                                match record.met.iter().find(|val| val.dimension_id == *metric) {
-                                    Some(value) => {
-                                        let sum = acc.entry(value.dimension_id).or_insert(0);
-                                        match value.value {
-                                            Value::Metric(x) => *sum += x,
-                                            _ => {}
-                                        }
-                                    },
-                                    None => {}
-                                }
-                            };
-                            (acc, attributes, count)
-                        });
+                        let aggregates: (HashMap::<u8, u32>, Vec<Value>, usize) = records
+                            .into_iter()
+                            .fold((HashMap::<u8, u32>::new(), vec![], 0), |(mut acc, mut attributes, mut count), record| {
+                                if attributes.len()==0 {attributes = record.att.clone();}
+                                count += 1;
+                                for metric in metrics.iter() {
+                                    match record.met.iter().find(|val| val.dimension_id == *metric) {
+                                        Some(value) => {
+                                            let sum = acc.entry(value.dimension_id).or_insert(0);
+                                            match value.value {
+                                                Value::Metric(x) => *sum += x,
+                                                _ => {}
+                                            }
+                                        },
+                                        None => {}
+                                    }
+                                };
+                                (acc, attributes, count)
+                            });
                         let res = AnalyticsType {
                             group_key: ids,
                             attributes: aggregates.1.clone(),
@@ -408,7 +469,6 @@ fn fetch_analytics(
 }
 
 fn main() {}
-
 
 #[pre_upgrade]
 fn pre_upgrade() {

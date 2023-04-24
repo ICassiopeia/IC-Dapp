@@ -27,7 +27,7 @@ type DimensionType =
  };
 type DatasetValue = 
  record {
-   dimension_id: nat32;
+   dimension_id: nat8;
    value: Value;
  };
 type DatasetEntryInput = 
@@ -45,7 +45,7 @@ type DatasetEntry =
  };
 type DatasetDimension = 
  record {
-   dimension_id: nat32;
+   dimension_id: nat8;
    dimension_type: DimensionType;
    title: text;
  };
@@ -84,7 +84,7 @@ type AnalyticsType =
  record {
    group_key: text;
    attributes: vec Value;
-   metrics: vec record { nat32; nat32 };
+   metrics: vec record { nat8; nat32 };
    count: nat32;
  };
 type AnalyticsSuperType = 
@@ -95,10 +95,9 @@ type AnalyticsSuperType =
 type QueryInput = 
  record {
    dataset_id : nat32;
-   nft_id : nat32;
-   attributes : vec nat32;
-   metrics : vec nat32;
-   filters : vec record {nat32; Value};
+   attributes : vec nat8;
+   metrics : vec nat8;
+   filters : vec record {nat8; Value};
  };
 type Query = 
  record {
@@ -106,12 +105,39 @@ type Query =
    user: principal;
    query_meta: QueryInput;
    query_state : QueryState;
+   is_gdpr : bool;
+   gdpr_limit : nat32;
  };
 type QueryState = 
  variant {
-   Executed;
+   Accepted;
    Pending;
    Rejected: text;
+ };
+type AnalyticsError = 
+ variant {
+   Unauthorized;
+   TokenExpired;
+   Other: text;
+ };
+type NftMetadata = 
+ record {
+   createdAt: int;
+   dataAssetId: nat32;
+   description: text;
+   dimensionRestrictList: vec nat32;
+   isEnabled: bool;
+   isGdrpEnabled: bool;
+   name: text;
+   price: nat32;
+   supply: nat32;
+   timeLimitSeconds: nat32;
+   updatedAt: int;
+ };
+type Result = 
+ variant {
+   err: text;
+   ok: AnalyticsSuperType;
  };
 service : {
   createDataSet: (DatasetCreateRequest) -> (nat32);
@@ -120,6 +146,7 @@ service : {
   deleteUserEntry: (nat32) -> () oneway;
   fetchAnalytics: (nat32, vec nat32, vec nat32, vec record {nat32; Value}, bool, nat32) ->
     (AnalyticsSuperType) query;
+  getAnalytics: (QueryInput) -> (Result) query;
   getDataByDatasetId: (nat32) -> (opt vec DatasetEntry) query;
   getDatasetActivity: (nat32) -> (opt vec DateMetrics) query;
   getDatasetByDatasetId: (nat32) -> (opt DatasetConfiguration) query;
@@ -127,6 +154,7 @@ service : {
                                                nat32;
                                                nat;
                                              }) query;
+  getDatasetQueryActivity: (nat32) -> (opt vec DateMetrics) query;
   getGDPRAggregatedDataset: (nat32, nat32, nat32) ->
    (vec record {
           Value;
