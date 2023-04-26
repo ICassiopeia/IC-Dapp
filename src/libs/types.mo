@@ -26,10 +26,20 @@ module {
     price: Nat32;
     supply: Nat32;
     timeLimitSeconds: Nat32;
-    dimensionRestrictList: [Nat32];
+    dimensionRestrictList: [Nat8];
     isGdrpEnabled: Bool;
     createdAt: Int;
     updatedAt: Int;
+  };
+
+  public type MetadataSmall = {
+    dataAssetId: Nat32;
+    isEnabled: Bool;
+    price: Nat32;
+    supply: Nat32;
+    timeLimitSeconds: Nat32;
+    dimensionRestrictList: [Nat8];
+    isGdrpEnabled: Bool;
   };
 
   public type MintRequest = {

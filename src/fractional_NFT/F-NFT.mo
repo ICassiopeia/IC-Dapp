@@ -514,27 +514,39 @@ actor FractionalNFT {
     };
   };
 
-  public shared({caller}) func getUserDatasetAccess(dataAssetId: Nat32, targerUser: ?Principal) : async ([T.Metadata]) {
+  public shared({caller}) func getUserDatasetAccess(dataAssetId: Nat32, targerUser: ?Principal) : async ([T.MetadataSmall]) {
     let user: Principal = switch(targerUser) {
       case(?principal) principal;
       case(_) caller;
     };
     switch(_datasetRel.get(dataAssetId)) {
       case (?_nfts) {
-        var arr = Buffer.Buffer<T.Metadata>(_nfts.size());
+        var arr = Buffer.Buffer<T.MetadataSmall>(_nfts.size());
         for(nft in Iter.fromArray(_nfts)) {
           switch(_dataTokens.get(nft)) {
             case (?_erc20) {
                 if(await _erc20.isUserOwner(AID.fromPrincipal(user, null)))
                   switch(_tokenMetadata.get(nft)) {
-                    case (?_meta) arr.add(_meta);
+                    case (?_meta) {
+                      let newMeta: T.MetadataSmall = {
+                        name= _meta.name;
+                        dataAssetId= _meta.dataAssetId;
+                        isEnabled= _meta.isEnabled;
+                        price= _meta.price;
+                        supply= _meta.supply;
+                        timeLimitSeconds= _meta.timeLimitSeconds;
+                        dimensionRestrictList= _meta.dimensionRestrictList;
+                        isGdrpEnabled= _meta.isGdrpEnabled;
+                      };
+                      arr.add(newMeta);
+                      };
                     case (_) {};
                   };
               };
             case (_) {};
           };
         };
-        Buffer.toArray(arr)
+        Buffer.toArray(arr);
       };
       case (_) [];
     };

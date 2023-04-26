@@ -125,17 +125,13 @@ type AnalyticsError =
  };
 type NftMetadata = 
  record {
-   createdAt: int;
    dataAssetId: nat32;
-   description: text;
-   dimensionRestrictList: vec nat32;
    isEnabled: bool;
-   isGdrpEnabled: bool;
-   name: text;
    price: nat32;
    supply: nat32;
    timeLimitSeconds: nat32;
-   updatedAt: int;
+   dimensionRestrictList: vec nat8;
+   isGdrpEnabled: bool;
  };
 type Result = 
  variant {

@@ -172,8 +172,6 @@ pub enum AnalyticsError {
 #[allow(non_snake_case)]
 #[derive(CandidType, Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct NftMetadata {
-    pub name : String,
-    pub description : String,
     pub dataAssetId : u32,
     pub isEnabled : bool,
     pub price : u32,
@@ -181,6 +179,4 @@ pub struct NftMetadata {
     pub timeLimitSeconds : u32,
     pub dimensionRestrictList : Vec<u8>,
     pub isGdrpEnabled : bool,
-    pub createdAt : u64,
-    pub updatedAt : u64,
 }

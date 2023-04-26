@@ -2,10 +2,9 @@ use itertools::Itertools;
 use data_assets::*;
 use std::collections::HashMap;
 use std::cell::RefCell;
-use std::env;
 use std::mem;
-use ic_cdk::api::time;
-
+use ic_cdk::api::{time};
+use ic_cdk::api::call::CallResult;
 use ic_cdk::storage;
 use ic_cdk_macros::{self, post_upgrade, pre_upgrade, query, update};
 use ic_cdk::export::Principal;
@@ -325,26 +324,31 @@ fn get_dataset_query_activity(
 
 async fn get_dataset_athorized_columns(dataset_id : u32) -> (Vec<u8>, bool) {
     let canister_id: &str = option_env!("CANISTER_ID_fractional_NFT").expect("Could not decode the principal of NFT canister.");
-    let access_request: Vec<NftMetadata> =
-        ic_cdk::call::<(u32, Principal), (Vec<NftMetadata>, )>(
+    let access_request: CallResult<(Vec<NftMetadata>,)> = ic_cdk::call(
             Principal::from_text(canister_id).expect("Could not decode the principal."),
-            &"getUserDatasetAccess".to_string(),
+            "getUserDatasetAccess",
             (dataset_id, ic_cdk::api::caller())
-        ).await.unwrap().0;
-    if access_request.len()>=1 {
-        (access_request
-            .iter()
-            .map(|x| x.dimensionRestrictList.clone())
-            .flatten()
-            .unique()
-            .collect::<Vec<u8>>()
-        , access_request[0].isGdrpEnabled)
-    } else {
-        (vec![], false)
+        ).await;
+    
+    match access_request {
+        Err((_, _)) => (vec![], false),
+        Ok((result,)) => {
+            if result.len()>=1 {
+                (result
+                    .iter()
+                    .map(|x| x.dimensionRestrictList.clone())
+                    .flatten()
+                    .unique()
+                    .collect::<Vec<u8>>()
+                , result[0].isGdrpEnabled)
+            } else {
+                (vec![], false)
+            }
+        },
     }
 }
 
-#[update(name = "getAnalytics")]
+#[update(name = "getAnalytics", composite = true)]
 async fn get_analytics(query: QueryInput) -> Result<AnalyticsSuperType, String> {
     // Check NFT ownership
     let (authorized, is_gdpr_enabled) = get_dataset_athorized_columns(query.dataset_id).await;
@@ -491,7 +495,7 @@ fn fetch_analytics(
     })
 }
 
-#[query(name = "getDatasetDownload")]
+#[query(name = "getDatasetDownload", composite = true)]
 async fn get_dataset_download(dataset_id : u32) -> Vec<DatasetEntry> {
     let (authorized, _) = get_dataset_athorized_columns(dataset_id).await;
     get_data_by_dataset_id(dataset_id, None, Some(authorized))
