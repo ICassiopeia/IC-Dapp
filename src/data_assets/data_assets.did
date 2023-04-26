@@ -143,8 +143,6 @@ type Result =
    ok: AnalyticsSuperType;
  };
 service : {
-  var2: () -> (text) query;
-  var3: () -> (text) query;
   createDataSet: (DatasetCreateRequest) -> (nat32);
   deleteAllEntriesOfUser: () -> () oneway;
   deleteDataSet: (nat32) -> ();

@@ -324,10 +324,10 @@ fn get_dataset_query_activity(
 }
 
 async fn get_dataset_athorized_columns(dataset_id : u32) -> (Vec<u8>, bool) {
-    let canister_id = env::var("CANISTER_ID_fractional_NFT").expect("Could not decode the principal.");
+    let canister_id: &str = option_env!("CANISTER_ID_fractional_NFT").expect("Could not decode the principal of NFT canister.");
     let access_request: Vec<NftMetadata> =
         ic_cdk::call::<(u32, Principal), (Vec<NftMetadata>, )>(
-            Principal::from_text(&canister_id).expect("Could not decode the principal."),
+            Principal::from_text(canister_id).expect("Could not decode the principal."),
             &"getUserDatasetAccess".to_string(),
             (dataset_id, ic_cdk::api::caller())
         ).await.unwrap().0;
@@ -343,18 +343,6 @@ async fn get_dataset_athorized_columns(dataset_id : u32) -> (Vec<u8>, bool) {
         (vec![], false)
     }
 }
-
-#[query(name = "var2")]
-async fn env_var2() -> String {
-    env::var("DFX_NETWORK").expect("toto")
-}
-
-
-#[query(name = "var3")]
-async fn env_var3() -> String {
-    env::var("CANISTER_ID").expect("toto")
-}
-
 
 #[update(name = "getAnalytics")]
 async fn get_analytics(query: QueryInput) -> Result<AnalyticsSuperType, String> {
