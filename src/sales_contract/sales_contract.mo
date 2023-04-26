@@ -52,10 +52,14 @@ actor sales_contracts {
             createdAt= Time.now();
             updatedAt= Time.now();
         };        
-        #ok(await _executeSalesOrder(offerNftId, finalOrder))
+        
+        switch(await _executeSalesOrder(offerNftId, finalOrder)) {
+            case (?res) #ok(res);
+            case (_) #err("Could not buy item.");
+        };
     };
 
-    private func _executeSalesOrder(offerId: Nat32, buyOrder: T.BuyOrder) : async T.SalesContract {
+    private func _executeSalesOrder(offerId: Nat32, buyOrder: T.BuyOrder) : async ?T.SalesContract {
         let offerInfo = await FNFT.getManyOfferNftMetdata([buyOrder.offerNftId]);
         let _offer = offerInfo[0];
         let executionDate = Time.now();
@@ -79,8 +83,10 @@ actor sales_contracts {
         };
 
         _salesContracts.put(offerId, finalOffer);
-        await FNFT.transferFrom(finalOffer.seller, finalOffer.buyer, finalOffer.nftId);
-        finalOffer
+        switch(await FNFT.transferFrom(finalOffer.seller, finalOffer.buyer, finalOffer.nftId)) {
+            case (?res) ?finalOffer;
+            case (_) null;
+        };
     };
 
     //
@@ -123,14 +129,9 @@ actor sales_contracts {
         Iter.toArray(userSales.entries())
     };
 
-    public query func getTrendingAssests() : async () {
-        // TODO
-    };
-
     public query func getTopSales() : async [(ExtCore.TokenIndex, T.TopSalesStats)] {
         let inLast14Days = func (x : Nat32, y: T.SalesContract) : ?T.SalesContract { if ((y.executionDate >= Time.now()-1209600000000000)) ?y else null };
         let lastSalesContracts = HashMap.mapFilter<Nat32, T.SalesContract, T.SalesContract>(_salesContracts, Nat32.equal, L.hash, inLast14Days);
-        // let extractPrice = func (x : Nat32, y: T.SalesContract) : (Text, Nat32) { (y.buyOrder.offerNftId, y.purchasePrice) };
 
         var _aggregatedSales = HashMap.HashMap<ExtCore.TokenIndex, T.TopSalesStats>(0, ExtCore.TokenIndex.equal, ExtCore.TokenIndex.hash);
         for(sale in lastSalesContracts.entries()) {
@@ -157,6 +158,15 @@ actor sales_contracts {
             }));
         };
         Iter.toArray(_aggregatedSales.entries())
+    };
+
+    public query func getDasasetLastTransactions(nfts: [ExtCore.TokenIndex], limit: Nat) : async [T.SalesContract] {
+        let buffered = Buffer.fromArray<ExtCore.TokenIndex>(nfts);
+        let inLast14Days = func (x : Nat32, y: T.SalesContract) : ?T.SalesContract { if ((Buffer.contains(buffered, y.nftId, Nat32.equal))) ?y else null };
+        let lastSalesContracts = HashMap.mapFilter<Nat32, T.SalesContract, T.SalesContract>(_salesContracts, Nat32.equal, L.hash, inLast14Days);
+        let test = Buffer.fromIter<T.SalesContract>(lastSalesContracts.vals());
+        test.sort(func(x, y) {Int.compare(x.executionDate, y.executionDate)});
+        List.toArray<T.SalesContract>(List.take<T.SalesContract>(List.fromArray<T.SalesContract>(Buffer.toArray<T.SalesContract>(test)), limit));
     };
 
     // public query func getAssetStats(offerNftId: Text) : async (T.SalesStats) {

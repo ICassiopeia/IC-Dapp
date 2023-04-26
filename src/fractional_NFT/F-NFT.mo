@@ -451,7 +451,7 @@ actor FractionalNFT {
 		_tokenMetadata.put(token, md);
     _updateAssetOfferList(request.metadata.dataAssetId, token, #Add);
     // Mint ERC20
-    Cycles.add(1_000_000_000_000);
+    Cycles.add(500_000_000_000);
     let erc20 = await ERC20.erc20_token(name, symbol, 0, initialSupply, msg.caller);
     let amountAccepted = await erc20.wallet_receive();
     _dataTokens.put(token, erc20);
@@ -540,6 +540,25 @@ actor FractionalNFT {
     };
   };
 
+  public shared({caller}) func getUserFNfts(targerUser: ?Principal) : async ([T.Metadata]) {
+    let user: Principal = switch(targerUser) {
+      case(?principal) principal;
+      case(_) caller;
+    };
+    let _nfts = _tokenMetadata.entries();
+    var arr = Buffer.Buffer<T.Metadata>(10);
+    for((nftId, metadata) in _nfts) {
+      switch(_dataTokens.get(nftId)) {
+        case (?_erc20) {
+            if(await _erc20.isUserOwner(AID.fromPrincipal(user, null)))
+              arr.add(metadata);
+          };
+        case (_) {};
+      };
+    };
+    Buffer.toArray(arr)
+  };
+
   public func isBuyable(token: ExtCore.TokenIndex) : async Bool {
     let check1 = switch(_tokenMetadata.get(token)) {
       case (?_config) _config.isEnabled==true;
@@ -600,6 +619,21 @@ actor FractionalNFT {
   };
 
   // TRANSFER
-  public shared({caller}) func transferFrom(from : ExtCore.AccountIdentifier, to : ExtCore.AccountIdentifier, token : Nat32) : async () {
+  public shared({caller}) func transferFrom(from : ExtCore.AccountIdentifier, to : ExtCore.AccountIdentifier, token : Nat32) : async ?ExtCore.TransferResponse {
+    switch(_dataTokens.get(token)) {
+      case (?_erc20) {
+        let request: ExtCore.TransferRequest = {
+          from=  #address(from);
+          to= #address(to);
+          token= "";
+          amount= 1;
+          memo= Blob.fromArray([]);
+          notify= false;
+          subaccount= null;
+        };
+        ?(await _erc20.transfer(request));
+      };
+      case (_) null;
+    }
   };
 }

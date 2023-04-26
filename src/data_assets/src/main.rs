@@ -296,7 +296,7 @@ fn get_dataset_activity(
             Some(entries) => {
                 let res = entries
                     .iter()
-                    .group_by(|rec| rec.created_at / 1_000_000 / 3600 / 24)
+                    .group_by(|rec| (rec.created_at / 86_400_000_000) * 86_400_000_000)
                     .into_iter()
                     .map(|(k, v)| DateMetrics {date: k, value: v.count() as u32})
                     .collect::<Vec<DateMetrics>>();
@@ -307,7 +307,7 @@ fn get_dataset_activity(
     })
 }
 
-#[query(name = "getDatasetQueryActivity")]
+#[query(name = "getDatasetQueryActivity", composite = true)]
 fn get_dataset_query_activity(
     dataset_id : u32,
 ) -> Vec<DateMetrics> {
@@ -316,13 +316,12 @@ fn get_dataset_query_activity(
             .iter()
             // .filter(|(&id, &query): (&u32, &Query)| query.query_meta.dataset_id == dataset_id)
             .filter(|(_, query)| query.query_meta.dataset_id == dataset_id)
-            .group_by(|(_, query)| query.timestamp / 1_000_000 / 3600 / 24 )
+            .group_by(|(_, query)| (query.timestamp / 86_400_000_000) * 86_400_000_000 )
             .into_iter()
             .map(|(k, v)| DateMetrics {date: k, value: v.count() as u32})
             .collect::<Vec<DateMetrics>>()
     })
 }
-
 
 async fn get_dataset_athorized_columns(dataset_id : u32) -> (Vec<u8>, bool) {
     let canister_id = env::var("CANISTER_ID_fractional_NFT").expect("Could not decode the principal.");
@@ -343,6 +342,17 @@ async fn get_dataset_athorized_columns(dataset_id : u32) -> (Vec<u8>, bool) {
     } else {
         (vec![], false)
     }
+}
+
+#[query(name = "var2")]
+async fn env_var2() -> String {
+    env::var("DFX_NETWORK").expect("toto")
+}
+
+
+#[query(name = "var3")]
+async fn env_var3() -> String {
+    env::var("CANISTER_ID").expect("toto")
 }
 
 

@@ -25,10 +25,13 @@ pub struct DatasetDimension {
 
 #[derive(CandidType, Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub enum DimensionType {
-    Numerical,
     Binary,
     Categorical(Vec<String>),
     Freetext,
+    Geolocation,
+    JsonObject,
+    File,
+    Numerical,
 }
 
 #[derive(CandidType, Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -166,6 +169,7 @@ pub enum AnalyticsError {
     Other(String),
 }
 
+#[allow(non_snake_case)]
 #[derive(CandidType, Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct NftMetadata {
     pub name : String,
