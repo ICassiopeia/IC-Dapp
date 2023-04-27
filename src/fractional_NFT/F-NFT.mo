@@ -454,6 +454,20 @@ actor FractionalNFT {
     Cycles.add(250_000_000_000);
     let erc20 = await ERC20.erc20_token(name, symbol, 0, initialSupply, msg.caller);
     let amountAccepted = await erc20.wallet_receive();
+    let allowanceRequest: ExtAllowance.ApproveRequest = {
+      spender=Principal.fromText("xq23i-4yaaa-aaaai-acp5a-cai");
+      subaccount=null;
+      allowance=initialSupply;
+      token="";
+    };
+    await erc20.approve(allowanceRequest);
+    let allowanceRequest2: ExtAllowance.ApproveRequest = {
+      spender=Principal.fromText("r7inp-6aaaa-aaaaa-aaabq-cai");
+      subaccount=null;
+      allowance=initialSupply;
+      token="";
+    };
+    await erc20.approve(allowanceRequest2);
     _dataTokens.put(token, erc20);
     // Misc.
 		_supply := _supply + 1;
@@ -484,6 +498,20 @@ actor FractionalNFT {
   public func getOfferNftACL(token: ExtCore.TokenIndex) : async [(ExtCore.AccountIdentifier, ExtCore.Balance)] {
     switch(_dataTokens.get(token)) {
       case (?_erc20) (await _erc20.getBalances());
+      case (_) [];
+    };
+  };
+
+  public func getOfferBalance(token: ExtCore.TokenIndex) : async [(ExtCore.AccountIdentifier, ExtCore.Balance)] {
+    switch(_dataTokens.get(token)) {
+      case (?_erc20) (await _erc20.getBalances());
+      case (_) [];
+    };
+  };
+
+  public func getOfferAllowances(token: ExtCore.TokenIndex, user: Principal) : async [(Principal, ExtCore.Balance)] {
+    switch(_dataTokens.get(token)) {
+      case (?_erc20) (await _erc20.getAllowances(user));
       case (_) [];
     };
   };
@@ -550,6 +578,37 @@ actor FractionalNFT {
       };
       case (_) [];
     };
+  };
+
+  public shared({caller}) func getUserDatasetAccess2(dataAssetId: Nat32, targerUser: ?Principal) : async ([Bool]) {
+    let user: Principal = switch(targerUser) {
+      case(?principal) principal;
+      case(_) caller;
+    };
+    switch(_datasetRel.get(dataAssetId)) {
+      case (?_nfts) {
+        var arr = Buffer.Buffer<Bool>(_nfts.size());
+        for(nft in Iter.fromArray(_nfts)) {
+          switch(_dataTokens.get(nft)) {
+            case (?_erc20) {
+                let test = await _erc20.isUserOwner(AID.fromPrincipal(user, null));
+                arr.add(test);
+              };
+            case (_) {};
+          };
+        };
+        Buffer.toArray(arr);
+      };
+      case (_) [];
+    };
+  };
+
+  public shared({caller}) func getUserDatasetAccess3(dataAssetId: Nat32, targerUser: ?Principal) : async (ExtCore.AccountIdentifier) {
+    let user: Principal = switch(targerUser) {
+      case(?principal) principal;
+      case(_) caller;
+    };
+    AID.fromPrincipal(user, null)
   };
 
   public shared({caller}) func getUserFNfts(targerUser: ?Principal) : async ([T.Metadata]) {
@@ -631,7 +690,7 @@ actor FractionalNFT {
   };
 
   // TRANSFER
-  public shared({caller}) func transferFrom(from : ExtCore.AccountIdentifier, to : ExtCore.AccountIdentifier, token : Nat32) : async ?ExtCore.TransferResponse {
+  public shared({caller}) func transferFrom(from : ExtCore.AccountIdentifier, to : ExtCore.AccountIdentifier, token : Nat32) : async Result.Result<ExtCore.TransferResponse, Text> {
     switch(_dataTokens.get(token)) {
       case (?_erc20) {
         let request: ExtCore.TransferRequest = {
@@ -643,9 +702,9 @@ actor FractionalNFT {
           notify= false;
           subaccount= null;
         };
-        ?(await _erc20.transfer(request));
+        #ok(await _erc20.transfer(request))
       };
-      case (_) null;
+      case (_) #err("Transfer from data token failed.");
     }
   };
 }

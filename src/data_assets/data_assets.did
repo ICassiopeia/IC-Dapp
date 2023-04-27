@@ -136,8 +136,8 @@ type NftMetadata =
  };
 type Result = 
  variant {
-   err: text;
-   ok: AnalyticsSuperType;
+   Err: text;
+   Ok: AnalyticsSuperType;
  };
 service : {
   randing: () -> (text);
@@ -158,6 +158,7 @@ service : {
                                              }) query;
   getDatasetQueryActivity: (nat32) -> (vec DateMetrics) query;
   getDatasetSample: (nat32) -> (vec DatasetEntry) query;
+  getDatasetsWhereUserIsProducers: () -> (vec nat32) query;
   getGDPRAggregatedDataset: (nat32, nat32, nat32) ->
    (vec record {
           Value;

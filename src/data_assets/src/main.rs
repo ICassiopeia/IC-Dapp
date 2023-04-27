@@ -82,6 +82,19 @@ fn get_producers(dataset_id: u32) -> Option<Vec<ProducerState>> {
     })
 }
 
+#[query(name = "getDatasetsWhereUserIsProducers")]
+fn get_datasets_where_user_is_producers() -> Vec<u32> {
+    DATASET_PRODUCERS.with(|map| {
+        let user = ic_cdk::api::caller();
+        map.borrow()
+            .iter()
+            .filter(|x| x.1.iter().find(|y| y.id==user).is_some())
+            .map(|x| x.0)
+            .cloned()
+            .collect()
+    })
+}
+
 #[query(name = "isUserProducer")]
 fn is_user_producer(dataset_id: u32) -> bool {
     DATASET_PRODUCERS.with(|map| {
@@ -322,12 +335,12 @@ fn get_dataset_query_activity(
     })
 }
 
-async fn get_dataset_athorized_columns(dataset_id : u32) -> (Vec<u8>, bool) {
+async fn get_dataset_athorized_columns(dataset_id : u32, caller: Principal) -> (Vec<u8>, bool) {
     let canister_id: &str = option_env!("CANISTER_ID_fractional_NFT").expect("Could not decode the principal of NFT canister.");
     let access_request: CallResult<(Vec<NftMetadata>,)> = ic_cdk::call(
             Principal::from_text(canister_id).expect("Could not decode the principal."),
             "getUserDatasetAccess",
-            (dataset_id, ic_cdk::api::caller())
+            (dataset_id, caller)
         ).await;
     
     match access_request {
@@ -351,7 +364,8 @@ async fn get_dataset_athorized_columns(dataset_id : u32) -> (Vec<u8>, bool) {
 #[update(name = "getAnalytics")]
 async fn get_analytics(query: QueryInput) -> Result<AnalyticsSuperType, String> {
     // Check NFT ownership
-    let (authorized, is_gdpr_enabled) = get_dataset_athorized_columns(query.dataset_id).await;
+    let caller = ic_cdk::api::caller();
+    let (authorized, is_gdpr_enabled) = get_dataset_athorized_columns(query.dataset_id, caller).await;
     if authorized.len()>=1 {
         let unauthorized_attributes = query.attributes
             .iter()
@@ -370,7 +384,7 @@ async fn get_analytics(query: QueryInput) -> Result<AnalyticsSuperType, String> 
                     let now = time();
                     let final_query = Query {
                         timestamp: now,
-                        user: ic_cdk::api::caller(),
+                        user: caller,
                         query_meta: query.clone(),
                         query_state: query_state.clone(),
                         is_gdpr: is_gdpr_enabled.clone(),
@@ -497,7 +511,8 @@ fn fetch_analytics(
 
 #[update(name = "getDatasetDownload")]
 async fn get_dataset_download(dataset_id : u32) -> Vec<DatasetEntry> {
-    let (authorized, _) = get_dataset_athorized_columns(dataset_id).await;
+    let caller = ic_cdk::api::caller();
+    let (authorized, _) = get_dataset_athorized_columns(dataset_id, caller).await;
     get_data_by_dataset_id(dataset_id, None, Some(authorized))
 }
 

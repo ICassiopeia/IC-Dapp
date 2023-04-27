@@ -54,18 +54,18 @@ actor sales_contracts {
         };        
         
         switch(await _executeSalesOrder(offerNftId, finalOrder)) {
-            case (?res) #ok(res);
-            case (_) #err("Could not buy item.");
+            case (#ok(res)) #ok(res);
+            case (#err(msg)) #err("Could not buy item." # msg);
         };
     };
 
-    private func _executeSalesOrder(offerId: Nat32, buyOrder: T.BuyOrder) : async ?T.SalesContract {
+    private func _executeSalesOrder(offerId: Nat32, buyOrder: T.BuyOrder) : async Result.Result<T.SalesContract, Text> {
         let offerInfo = await FNFT.getManyOfferNftMetdata([buyOrder.offerNftId]);
         let _offer = offerInfo[0];
         let executionDate = Time.now();
         let baseTransaction: T.Transaction = {
-            from= buyOrder.buyer;
-            to= _offer.owner;
+            from= _offer.owner;
+            to= buyOrder.buyer;
             value= _offer.metadata.price;
             transactionType= #base;
             executionDate= executionDate;
@@ -84,8 +84,8 @@ actor sales_contracts {
 
         _salesContracts.put(offerId, finalOffer);
         switch(await FNFT.transferFrom(finalOffer.seller, finalOffer.buyer, finalOffer.nftId)) {
-            case (?res) ?finalOffer;
-            case (_) null;
+            case (#ok(_)) #ok(finalOffer);
+            case (#err(_res)) #err(_res);
         };
     };
 
@@ -214,4 +214,14 @@ actor sales_contracts {
         let _emptyArray3 : [(Nat32, T.SalesContract)] = [];
         _salesContracts := HashMap.fromIter(_emptyArray3.vals(), 0, Nat32.equal, L.hash);
     };
+
+  public shared ({caller}) func whoami() : async Principal {
+    return caller;
+  };
+  public func id() : async Principal {
+    return await whoami();
+  };
+
+
+
 };
