@@ -9,13 +9,13 @@ use ic_cdk::storage;
 use ic_cdk_macros::{self, post_upgrade, pre_upgrade, query, update};
 use ic_cdk::export::Principal;
 
-
 thread_local! {
     pub static DATASETS: RefCell<HashMap<u32, DatasetConfiguration>>  = RefCell::new(HashMap::new());
     pub static DATASET_VALUES: RefCell<HashMap<u32, Vec<DatasetEntry>>> = RefCell::new(HashMap::new());
     pub static DATASET_OWNERS: RefCell<HashMap<Principal, Vec<u32>>> = RefCell::new(HashMap::new());
     pub static DATASET_PRODUCERS: RefCell<HashMap<u32, Vec<ProducerState>>> = RefCell::new(HashMap::new());
     pub static QUERIES: RefCell<HashMap<u32, Query>> = RefCell::new(HashMap::new());
+    pub static ANALYTICS_TOKENS: RefCell<HashMap<Principal, AnalyticsToken>> = RefCell::new(HashMap::new());
     pub static NEXT_DATASET_ID: RefCell<u32> = RefCell::new(0);
     pub static NEXT_QUERY_ID: RefCell<u32> = RefCell::new(0);
 }
@@ -57,7 +57,7 @@ async fn create_data_set(request: DatasetCreateRequest) -> u32 {
         // Configure init producer
         DATASET_PRODUCERS.with(|map| {
             let mut map = map.borrow_mut(); 
-            let new_producer = ProducerState {id:caller, is_enabled:true};
+            let new_producer = ProducerState {id:caller, is_enabled:true, created_at: time()};
             map.insert(*id, vec![new_producer]);
         });
         *id
@@ -94,7 +94,7 @@ fn is_user_producer(dataset_id: u32) -> bool {
 
 #[update(name = "updateProducerList")]
 async fn update_producer_list(dataset_id : u32, user: Principal, mode: UpdateMode) -> () {
-    let new_entry = vec![ ProducerState {id: user, is_enabled:true}];
+    let new_entry = vec![ ProducerState {id: user, is_enabled:true, created_at: time()}];
     DATASET_PRODUCERS.with(|map| {
         let mut map: std::cell::RefMut<HashMap<u32, Vec<ProducerState>>> = map.borrow_mut();
         match map.get_mut(&dataset_id) {
@@ -266,7 +266,7 @@ fn get_data_by_dataset_id(dataset_id : u32, sample: Option<u32>, attributes: Opt
 }
 
 #[query(name = "getProducersStats")]
-fn get_producers_stats(dataset_id : u32) -> Vec<(Principal, usize)> {
+fn get_producers_stats(dataset_id : u32) -> Vec<(Principal, u32)> {
     DATASET_VALUES.with(|map| {
         match map.borrow().get(&dataset_id) {
             Some(values) => {
@@ -277,7 +277,7 @@ fn get_producers_stats(dataset_id : u32) -> Vec<(Principal, usize)> {
                     .into_iter()
                     .map(|(id, records)| {
                         let count = records.into_iter().count();
-                        (id, count)
+                        (id, count as u32)
                     })
                     .collect()
                 },
@@ -306,11 +306,11 @@ fn get_dataset_activity(
     })
 }
 
-#[query(name = "getDatasetQueryActivity", composite = true)]
+#[query(name = "getDatasetQueryActivity")]
 fn get_dataset_query_activity(
     dataset_id : u32,
 ) -> Vec<DateMetrics> {
-    QUERIES.with(|map| {
+    QUERIES.with(|map: &RefCell<HashMap<u32, Query>>| {
         map.borrow()
             .iter()
             // .filter(|(&id, &query): (&u32, &Query)| query.query_meta.dataset_id == dataset_id)
@@ -348,7 +348,7 @@ async fn get_dataset_athorized_columns(dataset_id : u32) -> (Vec<u8>, bool) {
     }
 }
 
-#[update(name = "getAnalytics", composite = true)]
+#[update(name = "getAnalytics")]
 async fn get_analytics(query: QueryInput) -> Result<AnalyticsSuperType, String> {
     // Check NFT ownership
     let (authorized, is_gdpr_enabled) = get_dataset_athorized_columns(query.dataset_id).await;
@@ -495,7 +495,7 @@ fn fetch_analytics(
     })
 }
 
-#[query(name = "getDatasetDownload", composite = true)]
+#[update(name = "getDatasetDownload")]
 async fn get_dataset_download(dataset_id : u32) -> Vec<DatasetEntry> {
     let (authorized, _) = get_dataset_athorized_columns(dataset_id).await;
     get_data_by_dataset_id(dataset_id, None, Some(authorized))
@@ -503,7 +503,7 @@ async fn get_dataset_download(dataset_id : u32) -> Vec<DatasetEntry> {
 
 #[query(name = "getDatasetSample")]
 fn get_dataset_sample(dataset_id : u32) -> Vec<DatasetEntry> {
-    get_data_by_dataset_id(dataset_id, Some(50), None)
+    get_data_by_dataset_id(dataset_id, Some(30), None)
 }
 
 fn main() {}
@@ -547,4 +547,18 @@ fn post_upgrade() {
             })
         })
     });
+}
+
+#[update(name = "registerAnalyticsToken")]
+fn register_analytics_token(token: String) -> () {
+    ANALYTICS_TOKENS.with(|map| {
+        let now = time();
+        let token_state = AnalyticsToken {
+            token,
+            lifetime: 3600,
+            created_at: now,
+            expire_at: now,
+        };
+        map.borrow_mut().insert(ic_cdk::api::caller(), token_state);
+    })
 }

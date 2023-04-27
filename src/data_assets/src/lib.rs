@@ -93,6 +93,7 @@ pub struct DatasetConfigurationInput {
 pub struct ProducerState {
     pub id : Principal,
     pub is_enabled: bool,
+    pub created_at : u64,
 }
 
 #[derive(CandidType, Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -179,4 +180,13 @@ pub struct NftMetadata {
     pub timeLimitSeconds : u32,
     pub dimensionRestrictList : Vec<u8>,
     pub isGdrpEnabled : bool,
+}
+
+#[allow(non_snake_case)]
+#[derive(CandidType, Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct AnalyticsToken {
+    pub token : String,
+    pub lifetime : u32,
+    pub created_at : u64,
+    pub expire_at : u64,
 }

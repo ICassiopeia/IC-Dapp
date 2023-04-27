@@ -451,7 +451,7 @@ actor FractionalNFT {
 		_tokenMetadata.put(token, md);
     _updateAssetOfferList(request.metadata.dataAssetId, token, #Add);
     // Mint ERC20
-    Cycles.add(500_000_000_000);
+    Cycles.add(250_000_000_000);
     let erc20 = await ERC20.erc20_token(name, symbol, 0, initialSupply, msg.caller);
     let amountAccepted = await erc20.wallet_receive();
     _dataTokens.put(token, erc20);

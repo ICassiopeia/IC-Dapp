@@ -17,6 +17,7 @@ type ProducerState =
  record {
    id: principal;
    is_enabled: bool;
+   created_at: nat64;
  };
 type DimensionType = 
  variant {
@@ -139,6 +140,7 @@ type Result =
    ok: AnalyticsSuperType;
  };
 service : {
+  randing: () -> (text);
   createDataSet: (DatasetCreateRequest) -> (nat32);
   deleteAllEntriesOfUser: () -> () oneway;
   deleteDataSet: (nat32) -> ();
@@ -146,15 +148,15 @@ service : {
   fetchAnalytics: (nat32, vec nat32, vec nat32, vec record {nat32; Value}, bool, nat32) ->
     (AnalyticsSuperType) query;
   getAllDatasets: () -> (vec record {nat32; DatasetConfiguration}) query;
-  getAnalytics: (QueryInput) -> (Result) query;
+  getAnalytics: (QueryInput) -> (Result);
   getDatasetActivity: (nat32) -> (opt vec DateMetrics) query;
   getDatasetByDatasetId: (nat32) -> (opt DatasetConfiguration) query;
-  getDatasetDownload: (nat32) -> (vec DatasetEntry) query;
+  getDatasetDownload: (nat32) -> (vec DatasetEntry);
   getDatasetEntryCounts: (vec nat32) -> (vec record {
                                                nat32;
                                                nat;
                                              }) query;
-  getDatasetQueryActivity: (nat32) -> (opt vec DateMetrics) query;
+  getDatasetQueryActivity: (nat32) -> (vec DateMetrics) query;
   getDatasetSample: (nat32) -> (vec DatasetEntry) query;
   getGDPRAggregatedDataset: (nat32, nat32, nat32) ->
    (vec record {
@@ -169,15 +171,16 @@ service : {
           nat32;
           opt DatasetConfiguration;
         }) query;
-  getProducers: (nat32) -> (opt vec ProducerState);
+  getProducers: (nat32) -> (opt vec ProducerState) query;
   getProducersStats: (nat32) -> (vec record {
                                        principal;
-                                       nat;
+                                       nat32;
                                      }) query;
   getUserDataByDatasetId: (nat32) -> (vec DatasetEntry) query;
   getUserDatasets: (principal) -> (opt vec nat32) query;
   isUserProducer: (nat32) -> (bool);
   putManyEntries: (nat32, vec DatasetEntryInput) -> () oneway;
   updateProducerList: (nat32, principal, UpdateMode) -> ();
+  registerAnalyticsToken: (text) -> () oneway;
   searchDataset: (nat32) -> (vec nat32) query;
 }
