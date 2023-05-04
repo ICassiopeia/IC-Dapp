@@ -41,7 +41,7 @@ actor sales_contracts {
     //
     // Buy functions
     //
-    public shared({caller}) func buy(offerNftId: ExtCore.TokenIndex) : async Result.Result<T.SalesContract, Text> {
+    public shared({caller}) func buy(offerNftId: ExtCore.TokenIndex) : async T.SalesContract {
         assert(await FNFT.isBuyable(offerNftId));
         let purchasePrice = await FNFT.getSellingPrice(offerNftId);
         _nextSalesId := _nextSalesId + 1;
@@ -51,15 +51,11 @@ actor sales_contracts {
             purchasePrice= purchasePrice;
             createdAt= Time.now();
             updatedAt= Time.now();
-        };        
-        
-        switch(await _executeSalesOrder(offerNftId, finalOrder)) {
-            case (#ok(res)) #ok(res);
-            case (#err(msg)) #err("Could not buy item." # msg);
         };
+        await _executeSalesOrder(offerNftId, finalOrder)
     };
 
-    private func _executeSalesOrder(offerId: Nat32, buyOrder: T.BuyOrder) : async Result.Result<T.SalesContract, Text> {
+    private func _executeSalesOrder(offerId: Nat32, buyOrder: T.BuyOrder) : async T.SalesContract {
         let offerInfo = await FNFT.getManyOfferNftMetdata([buyOrder.offerNftId]);
         let _offer = offerInfo[0];
         let executionDate = Time.now();
@@ -83,10 +79,9 @@ actor sales_contracts {
         };
 
         _salesContracts.put(offerId, finalOffer);
-        switch(await FNFT.transferFrom(finalOffer.seller, finalOffer.buyer, finalOffer.nftId)) {
-            case (#ok(_)) #ok(finalOffer);
-            case (#err(_res)) #err(_res);
-        };
+        let canisterId = await FNFT.id();
+        let _ = await FNFT.transferFrom(finalOffer.buyer, finalOffer.nftId);
+        finalOffer
     };
 
     //
@@ -114,7 +109,6 @@ actor sales_contracts {
 
     public query({caller}) func getSalesOrderByUserId() : async [(T.SalesContractType)] {
         let isAssetIds = func (x : Nat32, y: T.SalesContract) : ?T.SalesContract {if(AID.equal(AID.fromPrincipal(caller, null), y.buyer)) ?y else null };
-        // let isAssetIds = func (x : Nat32, y: T.SalesContract) : ?T.SalesContract {if(List.some<Principal>(List.fromArray(y.parties), func (z: Principal): Bool = Principal.equal(caller, z))) ?y else null };
         let contracts = Iter.toArray(HashMap.mapFilter<Nat32, T.SalesContract, T.SalesContract>(_salesContracts, Nat32.equal, L.hash, isAssetIds).entries());
         Array.map<(Nat32, T.SalesContract), T.SalesContractType>(contracts, func(x : Nat32, y: T.SalesContract) { {id=x; contract=y ;} } )
     };
@@ -168,60 +162,11 @@ actor sales_contracts {
         test.sort(func(x, y) {Int.compare(x.executionDate, y.executionDate)});
         List.toArray<T.SalesContract>(List.take<T.SalesContract>(List.fromArray<T.SalesContract>(Buffer.toArray<T.SalesContract>(test)), limit));
     };
-
-    // public query func getAssetStats(offerNftId: Text) : async (T.SalesStats) {
-    //     let isAsset = func (x : Nat32, y: T.SellOrder) : ?T.SellOrder { if ((y.offerNftId == offerNftId) and (y.orderType == #marketplace)) ?y else null };
-    //     let assetOffers = Iter.toArray(HashMap.mapFilter<Nat32, T.SellOrder, T.SellOrder>(_offers, Nat32.equal, L.hash, isAsset).entries());
-
-    //     var minPrice: Nat32 = 0;
-    //     if(Nat.greater(assetOffers.size(), 0)) {
-    //         let orderMin = func (x: (Nat32, T.SellOrder), y: (Nat32, T.SellOrder)) : ((Nat32, T.SellOrder)) { if(Nat32.less(x.1.price, y.1.price)) x else y };
-    //         let bestOffer = Array.foldLeft<(Nat32, T.SellOrder), (Nat32, T.SellOrder)>(assetOffers, assetOffers[0], orderMin);
-    //         minPrice := bestOffer.1.price;
-    //     };
-
-    //     {
-    //         offerNftId= offerNftId;
-    //         count= Nat32.fromNat(assetOffers.size());
-    //         price= minPrice;
-    //     };
-    // };
-
-    // public query func getManyAssetStats(assetIds: [Text]) : async [(T.SalesStats)] {
-    //     var _res = List.nil<T.SalesStats>();
-    //     for(offerNftId in Iter.fromArray(assetIds)) {
-    //         let isAsset = func (x : Nat32, y: T.SellOrder) : ?T.SellOrder { if ((y.offerNftId == offerNftId) and (y.orderType == #marketplace)) ?y else null };
-    //         let assetOffers = Iter.toArray(HashMap.mapFilter<Nat32, T.SellOrder, T.SellOrder>(_offers, Nat32.equal, L.hash, isAsset).entries());
-            
-    //         var minPrice: Nat32 = 0;
-    //         if(Nat.greater(assetOffers.size(), 0)) {
-    //             let orderMin = func (x: (Nat32, T.SellOrder), y: (Nat32, T.SellOrder)) : ((Nat32, T.SellOrder)) { if(Nat32.less(x.1.price, y.1.price)) x else y };
-    //             let bestOffer = Array.foldLeft<(Nat32, T.SellOrder), (Nat32, T.SellOrder)>(assetOffers, assetOffers[0], orderMin);
-    //             minPrice := bestOffer.1.price;
-    //         };
-
-    //         let assetStats = {
-    //             offerNftId= offerNftId;
-    //             count= Nat32.fromNat(assetOffers.size());
-    //             price= minPrice;
-    //         };
-    //         _res := List.push(assetStats, _res);
-    //     };
-    //     List.toArray(_res)
-    // };
-
-    public query({caller}) func resetDatastore() : async () {
-        let _emptyArray3 : [(Nat32, T.SalesContract)] = [];
-        _salesContracts := HashMap.fromIter(_emptyArray3.vals(), 0, Nat32.equal, L.hash);
+    
+    public shared ({caller}) func whoami() : async Principal {
+        return caller;
     };
-
-  public shared ({caller}) func whoami() : async Principal {
-    return caller;
-  };
-  public func id() : async Principal {
-    return await whoami();
-  };
-
-
-
+    public func id() : async Principal {
+        return await whoami();
+    };
 };

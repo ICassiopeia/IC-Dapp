@@ -30,6 +30,20 @@
         "bindings": ["ts", "js", "did"],
         "node_compatibility": true
       }
+    },
+    "dapp_frontend": {
+      "dependencies": [
+        "data_assets",
+        "fractional_NFT",
+        "sales_contract"
+      ],
+      "frontend": {
+        "entrypoint": "index.js"
+      },
+      "source": [
+        "dist/"
+      ],
+      "type": "assets"
     }
   },
   "defaults": {
@@ -41,7 +55,7 @@
   "declarations": {
     "output": "src/dapp_frontend/src/types/dfinity"
   },
-  "dfx": "0.13.1",
+  "dfx": "0.14.0",
   "networks": {
     "local": {
       "bind": "127.0.0.1:8000",

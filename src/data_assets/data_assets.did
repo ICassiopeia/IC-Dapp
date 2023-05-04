@@ -139,6 +139,11 @@ type Result =
    Err: text;
    Ok: AnalyticsSuperType;
  };
+type ResultDownload = 
+ variant {
+   Err: text;
+   Ok: vec DatasetEntry;
+ };
 service : {
   randing: () -> (text);
   createDataSet: (DatasetCreateRequest) -> (nat32);
@@ -148,14 +153,17 @@ service : {
   fetchAnalytics: (nat32, vec nat32, vec nat32, vec record {nat32; Value}, bool, nat32) ->
     (AnalyticsSuperType) query;
   getAllDatasets: () -> (vec record {nat32; DatasetConfiguration}) query;
-  getAnalytics: (QueryInput) -> (Result);
+  getAnalytics: (QueryInput, opt text) -> (Result);
+  getAuthorizedColumns: (nat32) -> (vec nat8, bool);
   getDatasetActivity: (nat32) -> (opt vec DateMetrics) query;
   getDatasetByDatasetId: (nat32) -> (opt DatasetConfiguration) query;
-  getDatasetDownload: (nat32) -> (vec DatasetEntry);
+  getDatasetDownload: (nat32, opt text) -> (ResultDownload);
+  getDatasetDownload2: (text) -> ( text);
   getDatasetEntryCounts: (vec nat32) -> (vec record {
                                                nat32;
                                                nat;
                                              }) query;
+  getDatasetOwnerships: () -> (vec record {principal; vec nat32}) query;
   getDatasetQueryActivity: (nat32) -> (vec DateMetrics) query;
   getDatasetSample: (nat32) -> (vec DatasetEntry) query;
   getDatasetsWhereUserIsProducers: () -> (vec nat32) query;
@@ -182,6 +190,7 @@ service : {
   isUserProducer: (nat32) -> (bool);
   putManyEntries: (nat32, vec DatasetEntryInput) -> () oneway;
   updateProducerList: (nat32, principal, UpdateMode) -> ();
-  registerAnalyticsToken: (text) -> () oneway;
+  registerAnalyticsToken: (text) -> (text);
   searchDataset: (nat32) -> (vec nat32) query;
+  myUser: () -> (principal) query;
 }

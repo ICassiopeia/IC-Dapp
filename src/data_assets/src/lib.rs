@@ -102,7 +102,10 @@ pub struct StableState {
     pub dataset_values: HashMap<u32, Vec<DatasetEntry>>,
     pub dataset_owners: HashMap<Principal, Vec<u32>>,
     pub dataset_producers: HashMap<u32, Vec<ProducerState>>,
+    pub queries: HashMap<u32, Query>,
+    pub analytics_tokens: HashMap<Principal, AnalyticsToken>,
     pub next_dataset_id: u32,
+    pub next_query_id: u32,
 }
 
 #[derive(CandidType, Clone, Debug, PartialEq, Serialize, Deserialize)]

@@ -6,8 +6,14 @@ use std::mem;
 use ic_cdk::api::{time};
 use ic_cdk::api::call::CallResult;
 use ic_cdk::storage;
-use ic_cdk_macros::{self, post_upgrade, pre_upgrade, query, update};
+use ic_cdk_macros::{self, init, post_upgrade, pre_upgrade, query, update};
 use ic_cdk::export::Principal;
+
+// thread_local! {
+//     pub static STATE: RefCell<State>  = RefCell::new(HashMap::new());
+// }
+
+// #[init]
 
 thread_local! {
     pub static DATASETS: RefCell<HashMap<u32, DatasetConfiguration>>  = RefCell::new(HashMap::new());
@@ -19,9 +25,6 @@ thread_local! {
     pub static NEXT_DATASET_ID: RefCell<u32> = RefCell::new(0);
     pub static NEXT_QUERY_ID: RefCell<u32> = RefCell::new(0);
 }
-// #[ic_cdk_macros::import(canister = "fractional_NFT")]
-// struct ImportedCanister;
-
 
 #[update(name = "createDataSet")]
 async fn create_data_set(request: DatasetCreateRequest) -> u32 {
@@ -99,14 +102,35 @@ fn get_datasets_where_user_is_producers() -> Vec<u32> {
 fn is_user_producer(dataset_id: u32) -> bool {
     DATASET_PRODUCERS.with(|map| {
         match map.borrow().get(&dataset_id) {
-            Some(producers) => {producers.clone().iter().filter(|prod|prod.id == ic_cdk::api::caller()).collect::<Vec<&ProducerState>>().len() > 0},
+            Some(producers) => {
+                let caller = ic_cdk::api::caller();
+                producers.iter()
+                    .find(|prod|prod.id == caller)
+                    .is_some()
+                },
             None => false
         }
     })
 }
 
+
+#[query(name = "myUser")]
+fn my_user() -> Principal {
+    ic_cdk::api::caller()
+}
+
 #[update(name = "updateProducerList")]
 async fn update_producer_list(dataset_id : u32, user: Principal, mode: UpdateMode) -> () {
+    // assert user is owner
+    let caller = ic_cdk::api::caller();
+    let test = DATASET_OWNERS.with(|map| {
+        match map.borrow().get(&caller) {
+            Some(owners) => owners.contains(&dataset_id),
+            None => false,
+        }
+    });
+    assert!(test);
+
     let new_entry = vec![ ProducerState {id: user, is_enabled:true, created_at: time()}];
     DATASET_PRODUCERS.with(|map| {
         let mut map: std::cell::RefMut<HashMap<u32, Vec<ProducerState>>> = map.borrow_mut();
@@ -135,6 +159,16 @@ fn search_dataset(search : String) -> Vec<u32> {
         .iter()
         .filter_map(|(&k, ref v)| if v.name.contains(&search) || v.description.contains(&search) {Some(k)} else {None})
         .collect()
+    })
+}
+
+#[query(name = "getDatasetOwnerships")]
+fn get_dataset_ownerships() -> Vec<(Principal, Vec<u32>)> {
+    DATASET_OWNERS.with(|map| {
+       map.borrow()
+       .iter()
+       .map(|(&x, y)| (x, y.clone()))
+       .collect()
     })
 }
 
@@ -335,6 +369,8 @@ fn get_dataset_query_activity(
     })
 }
 
+
+
 async fn get_dataset_athorized_columns(dataset_id : u32, caller: Principal) -> (Vec<u8>, bool) {
     let canister_id: &str = option_env!("CANISTER_ID_fractional_NFT").expect("Could not decode the principal of NFT canister.");
     let access_request: CallResult<(Vec<NftMetadata>,)> = ic_cdk::call(
@@ -362,51 +398,65 @@ async fn get_dataset_athorized_columns(dataset_id : u32, caller: Principal) -> (
 }
 
 #[update(name = "getAnalytics")]
-async fn get_analytics(query: QueryInput) -> Result<AnalyticsSuperType, String> {
+async fn get_analytics(query: QueryInput, token_data : Option<String>) -> Result<AnalyticsSuperType, String> {
     // Check NFT ownership
-    let caller = ic_cdk::api::caller();
-    let (authorized, is_gdpr_enabled) = get_dataset_athorized_columns(query.dataset_id, caller).await;
-    if authorized.len()>=1 {
-        let unauthorized_attributes = query.attributes
-            .iter()
-            .filter(|x| !authorized.contains(x))
-            .cloned()
-            .collect::<Vec<u8>>();
-
-        if unauthorized_attributes.len()==0 {
-            NEXT_QUERY_ID.with(|current_id| {
-                let mut id = current_id.borrow_mut();
-                *id += 1;
+    let ic_caller = ic_cdk::api::caller();
+    let caller = process_token_data(ic_caller, token_data);
+    match caller {
+        Ok(_caller) => {
+            let (authorized, is_gdpr_enabled) = get_dataset_athorized_columns(query.dataset_id, _caller.clone()).await;
+            if authorized.len()>=1 {
+                let mut requested_fields = query.attributes.clone();
+                requested_fields.extend(query.metrics.clone());
+                let unauthorized_attributes = requested_fields
+                    .iter()
+                    .filter(|x| !authorized.contains(x))
+                    .cloned()
+                    .collect::<Vec<u8>>();
         
-                let query_state = QueryState::Pending;
-        
-                QUERIES.with(|map| {
-                    let now = time();
-                    let final_query = Query {
-                        timestamp: now,
-                        user: caller,
-                        query_meta: query.clone(),
-                        query_state: query_state.clone(),
-                        is_gdpr: is_gdpr_enabled.clone(),
-                        gdpr_limit: 5,
-                    };
-                    map.borrow_mut().entry(id.clone()).or_insert(final_query);
-                    Ok(fetch_analytics(
-                        query.dataset_id,
-                        query.attributes,
-                        query.metrics,
-                        query.filters,
-                        is_gdpr_enabled,
-                        5,
-                    ))
-                })
-            })
-        } else {
-            return Err("User does not have access to following attributes".to_string());
-        }
-    } else  {
-        Err("User does not own NFT linked to this dataset.".to_string())
+                if unauthorized_attributes.len()==0 {
+                    NEXT_QUERY_ID.with(|current_id| {
+                        let mut id = current_id.borrow_mut();
+                        *id += 1;
+                
+                        let query_state = QueryState::Pending;
+                
+                        QUERIES.with(|map| {
+                            let now = time();
+                            let final_query = Query {
+                                timestamp: now,
+                                user: _caller,
+                                query_meta: query.clone(),
+                                query_state: query_state.clone(),
+                                is_gdpr: is_gdpr_enabled.clone(),
+                                gdpr_limit: 5,
+                            };
+                            map.borrow_mut().entry(id.clone()).or_insert(final_query);
+                            Ok(fetch_analytics(
+                                query.dataset_id,
+                                query.attributes,
+                                query.metrics,
+                                query.filters,
+                                is_gdpr_enabled,
+                                5,
+                            ))
+                        })
+                    })
+                } else {
+                    return Err("User does not have access to following attributes".to_string());
+                }
+            } else  {
+                Err("User does not own NFT linked to this dataset.".to_string())
+            }
+        },
+        Err(_msg) => Err(_msg.to_string()),
     }
+}
+
+#[update(name = "getAuthorizedColumns")]
+async fn get_authorized_columns(dataset_id : u32) -> (Vec<u8>, bool)  {
+    let caller = ic_cdk::api::caller();
+    get_dataset_athorized_columns(dataset_id, caller).await
 }
 
 fn fetch_analytics(
@@ -509,11 +559,54 @@ fn fetch_analytics(
     })
 }
 
+
+fn process_token_data(
+    ic_caller : Principal,
+    token : Option<String>,
+) -> Result<Principal, String> {
+    match token {
+        Some(_token_data) => {
+            ANALYTICS_TOKENS.with(|map| {
+                let map = map.borrow();
+                let token_search = map
+                    .iter()
+                    .find(|(_, ref y)| y.token==_token_data)
+                    .clone();
+
+                match token_search {
+                    Some(token_record) => {
+                        // Check token validity
+                        // if entry.token==token {
+                        Ok(token_record.0.clone())
+                        // } else {
+                        //     Err("Invalid token".to_string())
+                        // }
+                    },
+                    None => Err("Token not found in backend".to_string()),
+                }
+            })
+        },
+        None => {
+            if ic_caller.to_text() == "2vxsx-fae" {
+                Err("Anonymous identity without token is unauthorized".to_string())
+            } else {
+                Ok(ic_caller)
+            }
+        },
+    }
+}
+
 #[update(name = "getDatasetDownload")]
-async fn get_dataset_download(dataset_id : u32) -> Vec<DatasetEntry> {
-    let caller = ic_cdk::api::caller();
-    let (authorized, _) = get_dataset_athorized_columns(dataset_id, caller).await;
-    get_data_by_dataset_id(dataset_id, None, Some(authorized))
+async fn get_dataset_download(dataset_id : u32, token_data: Option<String>) -> Result<Vec<DatasetEntry>, String> {
+    let ic_caller = ic_cdk::api::caller();
+    let caller = process_token_data(ic_caller, token_data);
+    match caller {
+        Ok(_caller) => {
+            let (authorized, _) = get_dataset_athorized_columns(dataset_id, _caller).await;
+            Ok(get_data_by_dataset_id(dataset_id, None, Some(authorized)))
+        },
+        Err(_msg) => Err(_msg.to_string()),
+    }
 }
 
 #[query(name = "getDatasetSample")]
@@ -529,18 +622,29 @@ fn pre_upgrade() {
         let reader = counter_ref.borrow();
         *reader
     });
+    let next_query_id_copied: u32 = NEXT_QUERY_ID.with(|counter_ref| {
+        let reader = counter_ref.borrow();
+        *reader
+    });
     DATASETS.with(|datasets_ref| {
         DATASET_VALUES.with(|dataset_values_ref| {
             DATASET_OWNERS.with(|dataset_owners_ref| {
                 DATASET_PRODUCERS.with(|dataset_producers_ref| {
-                    let old_state = StableState {
-                        datasets: mem::take(&mut datasets_ref.borrow_mut()),
-                        dataset_values: mem::take(&mut dataset_values_ref.borrow_mut()),
-                        dataset_owners: mem::take(&mut dataset_owners_ref.borrow_mut()),
-                        dataset_producers: mem::take(&mut dataset_producers_ref.borrow_mut()),
-                        next_dataset_id: next_dataset_id_copied,
-                    };
-                    storage::stable_save((old_state,)).unwrap();
+                    QUERIES.with(|queries_ref| {
+                        ANALYTICS_TOKENS.with(|analytics_tokens_ref| {
+                            let old_state = StableState {
+                                datasets: mem::take(&mut datasets_ref.borrow_mut()),
+                                dataset_values: mem::take(&mut dataset_values_ref.borrow_mut()),
+                                dataset_owners: mem::take(&mut dataset_owners_ref.borrow_mut()),
+                                dataset_producers: mem::take(&mut dataset_producers_ref.borrow_mut()),
+                                queries: mem::take(&mut queries_ref.borrow_mut()),
+                                analytics_tokens: mem::take(&mut analytics_tokens_ref.borrow_mut()),
+                                next_dataset_id: next_dataset_id_copied,
+                                next_query_id: next_query_id_copied,
+                            };
+                            storage::stable_save((old_state,)).unwrap();
+                        })
+                    })
                 })
             })
         })
@@ -550,14 +654,26 @@ fn pre_upgrade() {
 #[post_upgrade]
 fn post_upgrade() {
     let (old_state,): (StableState,) = storage::stable_restore().unwrap();
+    NEXT_DATASET_ID.with(|counter_ref| {
+        *counter_ref.borrow_mut() = old_state.next_dataset_id;
+    });
+    NEXT_QUERY_ID.with(|counter_ref| {
+        *counter_ref.borrow_mut() = old_state.next_query_id;
+    });
     DATASETS.with(|datasets_ref| {
         DATASET_VALUES.with(|dataset_values_ref| {
             DATASET_OWNERS.with(|dataset_owners_ref| {
                 DATASET_PRODUCERS.with(|dataset_producers_ref| {
-                    *datasets_ref.borrow_mut() = old_state.datasets;
-                    *dataset_values_ref.borrow_mut() = old_state.dataset_values;
-                    *dataset_owners_ref.borrow_mut() = old_state.dataset_owners;
-                    *dataset_producers_ref.borrow_mut() = old_state.dataset_producers;
+                    QUERIES.with(|queries_ref| {
+                        ANALYTICS_TOKENS.with(|analytics_tokens_ref| {
+                            *datasets_ref.borrow_mut() = old_state.datasets;
+                            *dataset_values_ref.borrow_mut() = old_state.dataset_values;
+                            *dataset_owners_ref.borrow_mut() = old_state.dataset_owners;
+                            *dataset_producers_ref.borrow_mut() = old_state.dataset_producers;
+                            *queries_ref.borrow_mut() = old_state.queries;
+                            *analytics_tokens_ref.borrow_mut() = old_state.analytics_tokens;
+                        })
+                    })
                 })
             })
         })
@@ -565,15 +681,16 @@ fn post_upgrade() {
 }
 
 #[update(name = "registerAnalyticsToken")]
-fn register_analytics_token(token: String) -> () {
+fn register_analytics_token(token: String) -> String {
     ANALYTICS_TOKENS.with(|map| {
         let now = time();
         let token_state = AnalyticsToken {
-            token,
+            token: token.clone(),
             lifetime: 3600,
             created_at: now,
             expire_at: now,
         };
         map.borrow_mut().insert(ic_cdk::api::caller(), token_state);
+        token
     })
 }

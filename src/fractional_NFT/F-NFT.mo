@@ -5,6 +5,7 @@ import Cycles "mo:base/ExperimentalCycles";
 import HashMap "mo:base/HashMap";
 import Principal "mo:base/Principal";
 import Result "mo:base/Result";
+import Error "mo:base/Error";
 import Array "mo:base/Array";
 import Iter "mo:base/Iter";
 import AID "../toniq-ext/motoko/util/AccountIdentifier";
@@ -401,8 +402,6 @@ actor FractionalNFT {
   //
 
 
-
-
   //
   // Fractional NFT
   //
@@ -451,23 +450,10 @@ actor FractionalNFT {
 		_tokenMetadata.put(token, md);
     _updateAssetOfferList(request.metadata.dataAssetId, token, #Add);
     // Mint ERC20
-    Cycles.add(250_000_000_000);
-    let erc20 = await ERC20.erc20_token(name, symbol, 0, initialSupply, msg.caller);
+    let canisterId = await id();
+    Cycles.add(500_000_000_000);
+    let erc20 = await ERC20.erc20_token(name, symbol, 0, initialSupply, canisterId);
     let amountAccepted = await erc20.wallet_receive();
-    let allowanceRequest: ExtAllowance.ApproveRequest = {
-      spender=Principal.fromText("xq23i-4yaaa-aaaai-acp5a-cai");
-      subaccount=null;
-      allowance=initialSupply;
-      token="";
-    };
-    await erc20.approve(allowanceRequest);
-    let allowanceRequest2: ExtAllowance.ApproveRequest = {
-      spender=Principal.fromText("r7inp-6aaaa-aaaaa-aaabq-cai");
-      subaccount=null;
-      allowance=initialSupply;
-      token="";
-    };
-    await erc20.approve(allowanceRequest2);
     _dataTokens.put(token, erc20);
     // Misc.
 		_supply := _supply + 1;
@@ -543,10 +529,7 @@ actor FractionalNFT {
   };
 
   public shared({caller}) func getUserDatasetAccess(dataAssetId: Nat32, targerUser: ?Principal) : async ([T.MetadataSmall]) {
-    let user: Principal = switch(targerUser) {
-      case(?principal) principal;
-      case(_) caller;
-    };
+    let user: Principal = Option.get(targerUser, caller);
     switch(_datasetRel.get(dataAssetId)) {
       case (?_nfts) {
         var arr = Buffer.Buffer<T.MetadataSmall>(_nfts.size());
@@ -580,42 +563,8 @@ actor FractionalNFT {
     };
   };
 
-  public shared({caller}) func getUserDatasetAccess2(dataAssetId: Nat32, targerUser: ?Principal) : async ([Bool]) {
-    let user: Principal = switch(targerUser) {
-      case(?principal) principal;
-      case(_) caller;
-    };
-    switch(_datasetRel.get(dataAssetId)) {
-      case (?_nfts) {
-        var arr = Buffer.Buffer<Bool>(_nfts.size());
-        for(nft in Iter.fromArray(_nfts)) {
-          switch(_dataTokens.get(nft)) {
-            case (?_erc20) {
-                let test = await _erc20.isUserOwner(AID.fromPrincipal(user, null));
-                arr.add(test);
-              };
-            case (_) {};
-          };
-        };
-        Buffer.toArray(arr);
-      };
-      case (_) [];
-    };
-  };
-
-  public shared({caller}) func getUserDatasetAccess3(dataAssetId: Nat32, targerUser: ?Principal) : async (ExtCore.AccountIdentifier) {
-    let user: Principal = switch(targerUser) {
-      case(?principal) principal;
-      case(_) caller;
-    };
-    AID.fromPrincipal(user, null)
-  };
-
   public shared({caller}) func getUserFNfts(targerUser: ?Principal) : async ([T.Metadata]) {
-    let user: Principal = switch(targerUser) {
-      case(?principal) principal;
-      case(_) caller;
-    };
+    let user: Principal = Option.get(targerUser, caller);
     let _nfts = _tokenMetadata.entries();
     var arr = Buffer.Buffer<T.Metadata>(10);
     for((nftId, metadata) in _nfts) {
@@ -659,11 +608,11 @@ actor FractionalNFT {
     };
   };
 
-  public query func findCollectionByAssetId(token: Nat32) : async () {
-  };
-
   // DELETE
-  public query func deleteNFT(token: Nat32) : async Bool {
+  public shared({caller}) func deleteNFT(token: Nat32) : async Bool {
+    let ?owner = _registry.get(token) else { throw Error.reject("No ERC20 found related to this NFT.") };
+    assert(AID.equal(owner, AID.fromPrincipal(caller, null)));
+
     switch(_tokenMetadata.get(token)) {
       case (?_meta) {
         let newMeta = {
@@ -689,22 +638,26 @@ actor FractionalNFT {
     }
   };
 
+  public shared ({caller}) func whoami() : async Principal {
+    return caller;
+  };
+  public func id() : async Principal {
+    return await whoami();
+  };
+  
   // TRANSFER
-  public shared({caller}) func transferFrom(from : ExtCore.AccountIdentifier, to : ExtCore.AccountIdentifier, token : Nat32) : async Result.Result<ExtCore.TransferResponse, Text> {
-    switch(_dataTokens.get(token)) {
-      case (?_erc20) {
-        let request: ExtCore.TransferRequest = {
-          from=  #address(from);
-          to= #address(to);
-          token= "";
-          amount= 1;
-          memo= Blob.fromArray([]);
-          notify= false;
-          subaccount= null;
-        };
-        #ok(await _erc20.transfer(request))
-      };
-      case (_) #err("Transfer from data token failed.");
-    }
+  public shared({caller}) func transferFrom(to : ExtCore.AccountIdentifier, token : Nat32) : async ExtCore.TransferResponse {
+    let ?erc20 = _dataTokens.get(token) else { throw Error.reject("No ERC20 found related to this NFT.") };
+    let canisterId = await id();
+    let request: ExtCore.TransferRequest = {
+      from=  #address(AID.fromPrincipal(canisterId, null));
+      to= #address(to);
+      token= "";
+      amount= 1;
+      memo= Blob.fromArray([]);
+      notify= false;
+      subaccount= null;
+    };
+    await erc20.transfer(request)
   };
 }

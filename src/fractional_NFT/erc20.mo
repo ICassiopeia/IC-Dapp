@@ -64,30 +64,30 @@ actor class erc20_token(init_name: Text, init_symbol: Text, init_decimals: Nat8,
     switch (_balances.get(owner)) {
       case (?owner_balance) {
         if (owner_balance >= request.amount) {
-          // if (AID.equal(owner, spender) == false) {
-          //   //Operator is not owner, so we need to validate here
-          //   switch (_allowances.get(owner)) {
-          //     case (?owner_allowances) {
-          //       switch (owner_allowances.get(msg.caller)) {
-          //         case (?spender_allowance) {
-          //           if (spender_allowance < request.amount) {
-          //             return #err(#Other("Spender allowance exhausted"));
-          //           } else {
-          //             var spender_allowance_new : ExtCore.Balance = spender_allowance - request.amount;
-          //             owner_allowances.put(msg.caller, spender_allowance_new);
-          //             _allowances.put(owner, owner_allowances);
-          //           };
-          //         };
-          //         case (_) {
-          //           return #err(#Unauthorized(spender));
-          //         };
-          //       };
-          //     };
-          //     case (_) {
-          //       return #err(#Unauthorized(spender));
-          //     };
-          //   };
-          // };
+          if (AID.equal(owner, spender) == false) {
+            //Operator is not owner, so we need to validate here
+            switch (_allowances.get(owner)) {
+              case (?owner_allowances) {
+                switch (owner_allowances.get(msg.caller)) {
+                  case (?spender_allowance) {
+                    if (spender_allowance < request.amount) {
+                      return #err(#Other("Spender allowance exhausted"));
+                    } else {
+                      var spender_allowance_new : ExtCore.Balance = spender_allowance - request.amount;
+                      owner_allowances.put(msg.caller, spender_allowance_new);
+                      _allowances.put(owner, owner_allowances);
+                    };
+                  };
+                  case (_) {
+                    return #err(#Unauthorized(spender));
+                  };
+                };
+              };
+              case (_) {
+                return #err(#Unauthorized(spender));
+              };
+            };
+          };
           
           var owner_balance_new : ExtCore.Balance = owner_balance - request.amount;
           _balances.put(owner, owner_balance_new);
