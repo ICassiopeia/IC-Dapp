@@ -3,12 +3,8 @@ name = "data_assets"
 version = "0.1.0"
 edition = "2021"
 
-[[bin]]
-name = "data_assets"
-path = "src/main.rs"
-
-# [lib]
-# crate-type = ["cdylib"]
+[lib]
+crate-type = ["cdylib"]
 
 [dependencies]
 candid = "0.8.4"
